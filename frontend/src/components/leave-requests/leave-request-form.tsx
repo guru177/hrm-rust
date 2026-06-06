@@ -1,5 +1,5 @@
 import axios from '@/lib/axios';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,14 +28,26 @@ export default function LeaveRequestForm({ onSuccess, onCancel }: LeaveRequestFo
     });
     const [errors, setErrors] = useState<Record<string, string[]>>({});
     const [loading, setLoading] = useState(false);
+    const [leaveTypes, setLeaveTypes] = useState<{ value: string; label: string }[]>([]);
 
-    const leaveTypes = [
-        { value: 'sick', label: 'Sick Leave' },
-        { value: 'annual', label: 'Annual Leave' },
-        { value: 'personal', label: 'Personal Leave' },
-        { value: 'unpaid', label: 'Unpaid Leave' },
-        { value: 'emergency', label: 'Emergency Leave' },
-    ];
+    useEffect(() => {
+        axios.get('/admin/leave-types').then((res) => {
+            if (res.data.success) {
+                setLeaveTypes(
+                    (res.data.data || []).map((t: { slug: string; name: string; payment_type_label?: string }) => ({
+                        value: t.slug,
+                        label: t.payment_type_label ? `${t.name} (${t.payment_type_label})` : t.name,
+                    })),
+                );
+            }
+        }).catch(() => {
+            setLeaveTypes([
+                { value: 'sick', label: 'Sick Leave' },
+                { value: 'annual', label: 'Annual Leave' },
+                { value: 'unpaid', label: 'Unpaid Leave (LOP)' },
+            ]);
+        });
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

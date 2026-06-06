@@ -58,8 +58,21 @@ pub async fn store(pool: web::Data<DbPool>, req: HttpRequest, body: web::Json<cr
     let conn = match pool.get() { Ok(c)=>c, Err(_)=>return HttpResponse::InternalServerError().json(ApiError::new("DB error")) };
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let tracking = format!("APP-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("0000").to_uppercase());
-    match conn.execute("INSERT INTO job_applications (career_id,name,email,phone,cover_letter,date_of_birth,status,tracking_number,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?6,'pending',?7,?8,?9)",
-        rusqlite::params![body.career_id, body.name, body.email, body.phone, body.cover_letter, body.date_of_birth, tracking, &now, &now]) {
+    match conn.execute(
+        "INSERT INTO job_applications (career_id,name,email,phone,cover_letter,dob,applied_position,status,tracking_number,created_at,updated_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,'pending',?8,?9,?9)",
+        rusqlite::params![
+            body.career_id,
+            body.name,
+            body.email,
+            body.phone,
+            body.cover_letter,
+            body.date_of_birth,
+            body.applied_position,
+            tracking,
+            &now,
+        ],
+    ) {
         Ok(_)=>HttpResponse::Created().json(ApiResponse::success(serde_json::json!({"id": conn.last_insert_rowid()}))),
         Err(e)=>HttpResponse::BadRequest().json(ApiError::new(&format!("{}",e)))
     }
@@ -77,11 +90,25 @@ pub async fn stats(pool: web::Data<DbPool>, req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({"total": t})))
 }
 pub async fn list(pool: web::Data<DbPool>, req: HttpRequest, query: web::Query<crate::models::job_application::JobApplicationQuery>) -> HttpResponse { index(pool, req, query).await }
+const VALID_APP_STATUSES: &[&str] = &[
+    "pending", "reviewing", "shortlisted", "interview", "offered", "hired", "rejected",
+];
+
 pub async fn update_status(pool: web::Data<DbPool>, req: HttpRequest, path: web::Path<i64>, body: web::Json<crate::models::job_application::UpdateStatusRequest>) -> HttpResponse {
     let _c = match get_claims_from_request(&req) { Ok(c)=>c, Err(e)=>return HttpResponse::Unauthorized().json(ApiError::new(&e.to_string())) };
+    if !VALID_APP_STATUSES.contains(&body.status.as_str()) {
+        return HttpResponse::BadRequest().json(ApiError::new("Invalid application status"));
+    }
     let conn = match pool.get() { Ok(c)=>c, Err(_)=>return HttpResponse::InternalServerError().json(ApiError::new("DB error")) };
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let _ = conn.execute("UPDATE job_applications SET status=?1,updated_at=?2 WHERE id=?3", rusqlite::params![body.status, &now, path.into_inner()]);
+    let id = path.into_inner();
+    let updated = conn.execute(
+        "UPDATE job_applications SET status=?1,updated_at=?2 WHERE id=?3",
+        rusqlite::params![body.status, &now, id],
+    );
+    if updated.unwrap_or(0) == 0 {
+        return HttpResponse::NotFound().json(ApiError::new("Application not found"));
+    }
     HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({"message": "Status updated"})))
 }
 
@@ -97,35 +124,40 @@ pub struct IncomingResumeWebhook {
 
 pub async fn webhook_incoming_resume(
     pool: web::Data<DbPool>,
+    req: HttpRequest,
     body: web::Json<IncomingResumeWebhook>,
 ) -> HttpResponse {
+    let expected = std::env::var("WEBHOOK_SECRET").unwrap_or_default();
+    if expected.is_empty() {
+        return HttpResponse::ServiceUnavailable().json(ApiError::new(
+            "Resume webhook is disabled — set WEBHOOK_SECRET to enable",
+        ));
+    }
+    let provided = req
+        .headers()
+        .get("X-Webhook-Secret")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if provided != expected {
+        return HttpResponse::Unauthorized().json(ApiError::new("Invalid webhook secret"));
+    }
+
     let conn = match pool.get() {
         Ok(c) => c,
         Err(_) => return HttpResponse::InternalServerError().json(ApiError::new("Database error")),
     };
 
-    let ts = chrono::Utc::now().timestamp_subsec_micros();
-    let ats_score = 60 + (ts % 38);
-    
-    let applied_position = body.position_hint.clone()
-        .unwrap_or_else(|| "Software Engineer".to_string());
-    
-    let experience_years = 1 + (ts % 9);
-    let expected_salary = format!("{} USD", 60000 + (ts % 90000));
-    
-    let dob = format!("{}-0{}-15", 2026 - (22 + (ts % 13)), 1 + (ts % 8));
-    let tracking_number = format!("APP-{}-{}", chrono::Utc::now().format("%Y"), 1000 + (ts % 8999));
+    let applied_position = body.position_hint.clone().unwrap_or_else(|| "Open Position".to_string());
+    let tracking_number = format!("APP-{}-{}", chrono::Utc::now().format("%Y"), chrono::Utc::now().timestamp());
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    
-    let ats_feedback = format!("Candidate shows strong potential for the {} role. Relevant experience identified.", applied_position);
 
     let career_id: i64 = conn.query_row("SELECT id FROM careers LIMIT 1", [], |row| row.get(0)).unwrap_or(1);
 
     let sql = "
         INSERT INTO job_applications (
-            career_id, tracking_number, name, email, phone, resume, status, 
-            applied_position, experience_years, expected_salary, dob, ats_score, ats_feedback, created_at, updated_at
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'pending', ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+            career_id, tracking_number, name, email, phone, resume, status,
+            applied_position, source, created_at, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'pending', ?7, 'webhook', ?8, ?8)
     ";
 
     let result = conn.execute(
@@ -138,20 +170,13 @@ pub async fn webhook_incoming_resume(
             body.candidate_phone.as_deref().unwrap_or(""),
             body.resume_url,
             applied_position,
-            experience_years,
-            expected_salary,
-            dob,
-            ats_score,
-            ats_feedback,
             now,
-            now
         ],
     );
 
     match result {
         Ok(_) => HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
-            "message": "Resume ingested and parsed successfully",
-            "ats_score": ats_score,
+            "message": "Resume ingested successfully",
             "tracking_number": tracking_number
         }))),
         Err(e) => {

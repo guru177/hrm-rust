@@ -21,7 +21,7 @@ import { handleApiError, handleApiResponse } from '@/lib/toast';
 
 export default function LeaveRequestsPage() {
     const navigate = useNavigate();
-    const { hasRole } = usePermissions();
+    const { hasRole, hasPermission } = usePermissions();
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -82,7 +82,7 @@ export default function LeaveRequestsPage() {
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
-                        {hasRole('admin') && (
+                        {(hasPermission('manage-leave-requests') || hasRole('admin')) && (
                             <Button
                                 variant="outline"
                                 onClick={() => navigate('/admin/leave-requests/manage')}

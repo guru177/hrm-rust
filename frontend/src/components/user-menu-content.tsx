@@ -30,7 +30,7 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
-                    <Link className="block w-full cursor-pointer" to="/admin/settings/app">
+                    <Link className="block w-full cursor-pointer" to="/admin/settings/profile">
                         <Settings className="mr-2" />
                         Settings
                     </Link>

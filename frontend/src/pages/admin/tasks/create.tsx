@@ -24,13 +24,10 @@ interface User {
 
 interface Props {
     users?: User[];
-    contacts?: Array<{ id: number; name: string }>;
-    companies?: Array<{ id: number; name: string }>;
-    leads?: Array<{ id: number; name: string }>;
     projects?: Array<{ id: number; name: string }>;
 }
 
-export default function Create({ users = [], contacts = [], companies = [], leads = [], projects = [] }: Props) {
+export default function Create({ users = [], projects = [] }: Props) {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
@@ -85,18 +82,10 @@ export default function Create({ users = [], contacts = [], companies = [], lead
     };
 
     const getRelatedOptions = () => {
-        switch (formData.related_type) {
-            case 'contact':
-                return contacts;
-            case 'company':
-                return companies;
-            case 'lead':
-                return leads;
-            case 'project':
-                return projects;
-            default:
-                return [];
+        if (formData.related_type === 'project') {
+            return projects;
         }
+        return [];
     };
 
     return (
@@ -404,13 +393,6 @@ export default function Create({ users = [], contacts = [], companies = [], lead
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="none">None</SelectItem>
-                                            <SelectItem value="contact">
-                                                Contact
-                                            </SelectItem>
-                                            <SelectItem value="company">
-                                                Company
-                                            </SelectItem>
-                                            <SelectItem value="lead">Lead</SelectItem>
                                             <SelectItem value="project">Project</SelectItem>
                                         </SelectContent>
                                     </Select>

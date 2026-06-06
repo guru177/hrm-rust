@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "zklib-js-zkteko": "^1.3.4"
+  }
+}

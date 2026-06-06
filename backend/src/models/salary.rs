@@ -34,14 +34,41 @@ pub struct CreateSalaryComponentRequest {
 
 impl SalaryComponent {
     pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        let component_type: String = row
+            .get::<_, Option<String>>("component_type")
+            .ok()
+            .flatten()
+            .or_else(|| row.get::<_, Option<String>>("type").ok().flatten())
+            .unwrap_or_else(|| "earning".to_string());
+        let default_value: Option<f64> = row
+            .get::<_, Option<f64>>("default_value")
+            .ok()
+            .flatten()
+            .or_else(|| row.get::<_, Option<f64>>("amount").ok().flatten());
+        let is_taxable = row
+            .get::<_, Option<i64>>("is_taxable")
+            .ok()
+            .flatten()
+            .map(|v| v != 0)
+            .or_else(|| {
+                row.get::<_, Option<i64>>("is_pre_tax")
+                    .ok()
+                    .flatten()
+                    .map(|v| v != 0)
+            })
+            .unwrap_or(false);
         Ok(Self {
             id: row.get("id")?,
             name: row.get("name")?,
-            slug: row.get("slug")?,
-            component_type: row.get("component_type")?,
+            slug: row
+                .get::<_, Option<String>>("slug")
+                .ok()
+                .flatten()
+                .unwrap_or_default(),
+            component_type,
             calculation_type: row.get("calculation_type")?,
-            default_value: row.get("default_value")?,
-            is_taxable: row.get::<_, Option<bool>>("is_taxable")?.unwrap_or(false),
+            default_value,
+            is_taxable,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })

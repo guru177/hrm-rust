@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from '@/lib/axios';
-import { Clock, LogIn, LogOut, Calendar } from 'lucide-react';
+import { Clock, LogIn, LogOut, Calendar, Timer } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 import AttendanceStats from '@/components/attendance/attendance-stats';
@@ -15,10 +15,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
 import { handleApiError, handleApiResponse } from '@/lib/toast';
+import { usePermissions } from '@/hooks/use-permissions';
 import { type SharedData } from '@/types';
 
 export default function AttendancePage() {
     const { user } = useAuth();
+    const { hasPermission } = usePermissions();
     const navigate = useNavigate();
     const [todayData, setTodayData] = useState<any>(null);
     const [stats, setStats] = useState<any>(null);
@@ -105,6 +107,17 @@ export default function AttendancePage() {
             : `/storage/${user.photo}`
         : null;
 
+    const todayShift = todayData?.shift;
+    const formatShiftTime = (value?: string) => {
+        if (!value) return '--:--';
+        const part = value.slice(0, 5);
+        const [h, m] = part.split(':').map(Number);
+        if (Number.isNaN(h) || Number.isNaN(m)) return value;
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    };
+
     const formatElapsedTime = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
@@ -160,9 +173,11 @@ export default function AttendancePage() {
                             Track your daily clock-in and clock-out times
                         </p>
                     </div>
-                    <Button onClick={() => navigate('/admin/leave-requests')}>
-                        Request Leave
-                    </Button>
+                    {hasPermission('manage-leave-requests') && (
+                        <Button onClick={() => navigate('/admin/leave-requests/manage')}>
+                            Leave Requests
+                        </Button>
+                    )}
                 </div>
 
                 {/* Today's Attendance Card */}
@@ -184,6 +199,23 @@ export default function AttendancePage() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-6">
+                            {todayShift && (
+                                <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+                                    <Timer className="h-4 w-4 text-primary" />
+                                    <span className="font-medium">
+                                        Today&apos;s Shift: {todayShift.template_name || 'Default Shift'}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                        {formatShiftTime(todayShift.start_time)} – {formatShiftTime(todayShift.end_time)}
+                                    </span>
+                                    {(todayShift.grace_in_minutes > 0 || todayShift.grace_out_minutes > 0) && (
+                                        <span className="text-xs text-muted-foreground">
+                                            Grace: +{todayShift.grace_in_minutes}m in / -{todayShift.grace_out_minutes}m out
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Total Duration Counter (Green) */}
                             {totalDurationSeconds > 0 && (
                                 <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 rounded-lg border-2 border-green-200 dark:border-green-800/50">
@@ -304,7 +336,7 @@ export default function AttendancePage() {
                                     variant={activeClockIn ? 'outline' : 'default'}
                                 >
                                     <LogIn className="mr-2 h-4 w-4" />
-                                    {clockingIn ? 'Clocking In...' : activeClockIn ? 'New Session' : 'Clock In'}
+                                    {clockingIn ? 'Clocking In...' : activeClockIn ? 'Start New Session' : 'Clock In'}
                                 </Button>
                                 <Button
                                     onClick={handleClockOut}

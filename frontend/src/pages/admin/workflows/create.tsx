@@ -25,11 +25,11 @@ interface Action {
 }
 
 const triggerTypes = [
-    { value: 'lead_created', label: 'Lead Created' },
-    { value: 'lead_status_changed', label: 'Lead Status Changed' },
-    { value: 'contact_created', label: 'Contact Created' },
-    { value: 'deal_created', label: 'Deal Created' },
-    { value: 'deal_status_changed', label: 'Deal Status Changed' },
+    { value: 'leave_request_submitted', label: 'Leave Request Submitted' },
+    { value: 'leave_request_approved', label: 'Leave Request Approved' },
+    { value: 'leave_request_rejected', label: 'Leave Request Rejected' },
+    { value: 'attendance_clock_in', label: 'Attendance Clock-In' },
+    { value: 'user_created', label: 'User Created' },
     { value: 'task_due', label: 'Task Due' },
     { value: 'time_based', label: 'Time-Based (Scheduled)' },
 ];
@@ -182,7 +182,7 @@ export default function Create() {
                         <div>
                             <Label>Task Title</Label>
                             <Input
-                                placeholder="Follow up with lead"
+                                placeholder="Notify manager on leave approval"
                                 value={action.config.title || ''}
                                 onChange={(e) =>
                                     updateAction(index, 'config', {
@@ -313,7 +313,7 @@ export default function Create() {
                                     id="name"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="e.g., Welcome New Leads"
+                                    placeholder="e.g., Notify on new leave request"
                                 />
                                 {errors.name && (
                                     <p className="mt-1 text-sm text-destructive">

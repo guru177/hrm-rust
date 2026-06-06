@@ -15,8 +15,8 @@ interface PermissionGuardProps {
  * Component to conditionally render content based on permissions
  * 
  * Usage:
- *   <PermissionGuard permission="create-contacts">
- *     <button>Create Contact</button>
+ *   <PermissionGuard permission="create-users">
+ *     <button>Create User</button>
  *   </PermissionGuard>
  * 
  *   <PermissionGuard action="edit" resource="users">

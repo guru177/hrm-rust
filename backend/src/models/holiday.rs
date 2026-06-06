@@ -15,6 +15,8 @@ pub struct CreateHolidayRequest {
     pub name: String,
     pub date: String,
     pub description: Option<String>,
+    #[serde(default)]
+    pub is_paid: Option<bool>,
 }
 
 impl Holiday {

@@ -50,7 +50,6 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "embla-carousel-react": "^8.6.0",
-        "firebase": "^12.10.0",
         "input-otp": "^1.4.2",
         "lucide-react": "^0.475.0",
         "react": "^19.2.4",
@@ -70,6 +69,7 @@
         "concurrently": "^10.0.3",
         "electron": "^42.3.2",
         "electron-builder": "^26.8.1",
+        "playwright": "^1.49.1",
         "sharp": "^0.34.5",
         "wait-on": "^9.0.10"
     }

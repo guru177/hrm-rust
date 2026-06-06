@@ -50,11 +50,11 @@ interface Props {
 }
 
 const triggerTypeLabels: Record<string, string> = {
-    lead_created: 'Lead Created',
-    lead_status_changed: 'Lead Status Changed',
-    contact_created: 'Contact Created',
-    deal_created: 'Deal Created',
-    deal_status_changed: 'Deal Status Changed',
+    leave_request_submitted: 'Leave Request Submitted',
+    leave_request_approved: 'Leave Request Approved',
+    leave_request_rejected: 'Leave Request Rejected',
+    attendance_clock_in: 'Attendance Clock-In',
+    user_created: 'User Created',
     task_due: 'Task Due',
     time_based: 'Time-Based',
 };

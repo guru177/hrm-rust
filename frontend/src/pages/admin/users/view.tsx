@@ -19,7 +19,8 @@ import {
     Camera,
     Banknote,
 } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -116,57 +117,110 @@ interface Props {
     salaryStructure?: SalaryStructure | null;
 }
 
-export default function ViewUser({ user: initialUser, availableManagers = [], departments = [], designations = [], salaryStructure: initialSalaryStructure }: Props) {
+export default function ViewUser() {
     const navigate = useNavigate();
-    const [user, setUser] = useState(initialUser);
+    const { id } = useParams();
+    const [user, setUser] = useState<User | null>(null);
+    const [availableManagers, setAvailableManagers] = useState<Manager[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [designations, setDesignations] = useState<Designation[]>([]);
+    
     const [isEditing, setIsEditing] = useState(false);
-    const [salaryStructure, setSalaryStructure] = useState<SalaryStructure | null>(initialSalaryStructure ?? null);
+    const [salaryStructure, setSalaryStructure] = useState<SalaryStructure | null>(null);
     const [isSalaryEditing, setIsSalaryEditing] = useState(false);
     const [savingSalary, setSavingSalary] = useState(false);
+    const [loading, setLoading] = useState(true);
+
     const [salaryForm, setSalaryForm] = useState({
-        basic_salary: initialSalaryStructure?.basic_salary ?? '',
-        hra: initialSalaryStructure?.hra ?? '',
-        transport_allowance: initialSalaryStructure?.transport_allowance ?? '',
-        other_allowances: initialSalaryStructure?.other_allowances ?? '',
-        pf_deduction: initialSalaryStructure?.pf_deduction ?? '',
-        esi_deduction: initialSalaryStructure?.esi_deduction ?? '',
-        tds: initialSalaryStructure?.tds ?? '',
-        effective_from: initialSalaryStructure?.effective_from ?? new Date().toISOString().split('T')[0],
+        basic_salary: '',
+        hra: '',
+        transport_allowance: '',
+        other_allowances: '',
+        pf_deduction: '',
+        esi_deduction: '',
+        tds: '',
+        effective_from: new Date().toISOString().split('T')[0],
     });
-    const [photoPreview, setPhotoPreview] = useState<string | null>(
-        user.photo
-            ? user.photo.startsWith('http')
-                ? user.photo
-                : `/storage/${user.photo}`
-            : null
-    );
+    
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [editForm, setEditForm] = useState({
-        name: initialUser.name,
-        email: initialUser.email,
-        employee_id: initialUser.employee_id || '',
-        phone: initialUser.phone || '',
-        department_id: initialUser.department_id?.toString() || '',
-        designation_id: initialUser.designation_id?.toString() || '',
-        reporting_manager_id: initialUser.reporting_manager_id?.toString() || '',
-        account_number: initialUser.account_number || '',
-        ifsc_code: initialUser.ifsc_code || '',
-        bank_name: initialUser.bank_name || '',
-        pan_number: initialUser.pan_number || '',
-        esi_number: initialUser.esi_number || '',
-        pf_number: initialUser.pf_number || '',
-        aadhar_number: initialUser.aadhar_number || '',
-        date_of_joining: initialUser.date_of_joining || '',
-        date_of_exit: initialUser.date_of_exit || '',
+        name: '',
+        email: '',
+        employee_id: '',
+        phone: '',
+        department_id: '',
+        designation_id: '',
+        reporting_manager_id: '',
+        account_number: '',
+        ifsc_code: '',
+        bank_name: '',
+        pan_number: '',
+        esi_number: '',
+        pf_number: '',
+        aadhar_number: '',
+        date_of_joining: '',
+        date_of_exit: '',
         password: '',
         photo: null as File | null,
     });
     const [updating, setUpdating] = useState(false);
 
-    const breadcrumbs = [
-        { title: 'Users', href: '/admin/users' },
-        { title: user.name, href: '' },
-    ];
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [userRes, managersRes, deptsRes, desigsRes] = await Promise.all([
+                    axios.get(`/admin/users/${id}`),
+                    axios.get('/admin/users/list'),
+                    axios.get('/admin/departments/list'),
+                    axios.get('/admin/designations/list')
+                ]);
+                
+                const userData = userRes.data.data;
+                setUser(userData);
+                
+                setEditForm({
+                    name: userData.name,
+                    email: userData.email,
+                    employee_id: userData.employee_id || '',
+                    phone: userData.phone || '',
+                    department_id: userData.department_id?.toString() || '',
+                    designation_id: userData.designation_id?.toString() || '',
+                    reporting_manager_id: userData.reporting_manager_id?.toString() || '',
+                    account_number: userData.account_number || '',
+                    ifsc_code: userData.ifsc_code || '',
+                    bank_name: userData.bank_name || '',
+                    pan_number: userData.pan_number || '',
+                    esi_number: userData.esi_number || '',
+                    pf_number: userData.pf_number || '',
+                    aadhar_number: userData.aadhar_number || '',
+                    date_of_joining: userData.date_of_joining || '',
+                    date_of_exit: userData.date_of_exit || '',
+                    password: '',
+                    photo: null,
+                });
+                
+                setPhotoPreview(
+                    userData.photo
+                        ? userData.photo.startsWith('http')
+                            ? userData.photo
+                            : `/storage/${userData.photo}`
+                        : null
+                );
+                
+                setAvailableManagers(managersRes.data.data);
+                setDepartments(deptsRes.data.data);
+                setDesignations(desigsRes.data.data);
+            } catch (error) {
+                console.error('Failed to load user data:', error);
+                handleApiError(error);
+                navigate('/admin/users');
+            } finally {
+                setLoading(false);
+            }
+        };
+        if (id) fetchData();
+    }, [id, navigate]);
 
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -209,12 +263,7 @@ export default function ViewUser({ user: initialUser, availableManagers = [], de
                 formData.append('photo', editForm.photo);
             }
 
-            const response = await axios.post(`/admin/users/${user.id}`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    'X-HTTP-Method-Override': 'PUT',
-                },
-            });
+            const response = await axios.post(`/admin/users/${user.id}`, formData);
 
             handleApiResponse(response);
             if (response.data.success) {
@@ -236,6 +285,7 @@ export default function ViewUser({ user: initialUser, availableManagers = [], de
     };
 
     const handleCancelEdit = () => {
+        if (!user) return;
         setEditForm({
             name: user.name,
             email: user.email,
@@ -267,6 +317,7 @@ export default function ViewUser({ user: initialUser, availableManagers = [], de
     };
 
     const handleStatusChange = async (status: string) => {
+        if (!user) return;
         setUpdating(true);
         try {
             const response = await axios.put(`/admin/users/${user.id}`, { status });
@@ -282,6 +333,7 @@ export default function ViewUser({ user: initialUser, availableManagers = [], de
     };
 
     const handleSaveSalary = async () => {
+        if (!user) return;
         setSavingSalary(true);
         try {
             const response = await axios.post(`/admin/users/${user.id}/salary-structure`, salaryForm);
@@ -306,6 +358,32 @@ export default function ViewUser({ user: initialUser, availableManagers = [], de
         const config = variants[status] || variants.active;
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
+
+    if (loading) {
+        return (
+            <AppLayout breadcrumbs={[{ title: 'Users', href: '/admin/users' }, { title: 'Loading...', href: '' }]}>
+                <div className="flex h-[400px] items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    if (!user) {
+        return (
+            <AppLayout breadcrumbs={[{ title: 'Users', href: '/admin/users' }, { title: 'Not Found', href: '' }]}>
+                <div className="flex h-[400px] flex-col items-center justify-center gap-4">
+                    <h2 className="text-xl font-semibold">User not found</h2>
+                    <Button onClick={() => navigate('/admin/users')}>Back to Users</Button>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    const breadcrumbs = [
+        { title: 'Users', href: '/admin/users' },
+        { title: user.name, href: '' },
+    ];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>

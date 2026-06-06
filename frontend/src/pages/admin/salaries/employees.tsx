@@ -50,7 +50,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { SalaryStructurePanel } from '@/components/salary-structure-panel';
+import { SalaryTabsPanel } from '@/components/salary-tabs-panel';
 import AppLayout from '@/layouts/app-layout';
 import { handleApiError } from '@/lib/toast';
 
@@ -67,14 +67,14 @@ function SalaryStructureDialog({
 }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Banknote className="h-5 w-5" />
                         Salary Structure &mdash; {userName}
                     </DialogTitle>
                 </DialogHeader>
-                {open && <SalaryStructurePanel key={userId} userId={userId} />}
+                {open && <SalaryTabsPanel userId={userId} />}
             </DialogContent>
         </Dialog>
     );

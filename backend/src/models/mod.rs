@@ -13,6 +13,7 @@ pub mod payslip;
 pub mod salary;
 pub mod career;
 pub mod job_application;
+pub mod biometric;
 
 // Re-export common response types
 use serde::Serialize;

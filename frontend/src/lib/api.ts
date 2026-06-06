@@ -13,6 +13,15 @@ export function setToken(token: string) {
 /** Clear JWT token */
 export function clearToken() {
     localStorage.removeItem('hrm_token');
+    localStorage.removeItem('hrm_refresh_token');
+}
+
+export function setRefreshToken(token: string) {
+    localStorage.setItem('hrm_refresh_token', token);
+}
+
+export function getRefreshToken(): string | null {
+    return localStorage.getItem('hrm_refresh_token');
 }
 
 /** Check if user is authenticated */
@@ -20,10 +29,42 @@ export function isAuthenticated(): boolean {
     return !!getToken();
 }
 
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+    const refresh = getRefreshToken();
+    if (!refresh) return false;
+    if (!refreshInFlight) {
+        refreshInFlight = (async () => {
+            try {
+                const res = await fetch(`${API_BASE}/auth/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: JSON.stringify({ refresh_token: refresh }),
+                });
+                if (!res.ok) return false;
+                const json = await res.json();
+                const newToken = json?.data?.token;
+                const newRefresh = json?.data?.refresh_token;
+                if (!newToken) return false;
+                setToken(newToken);
+                if (newRefresh) setRefreshToken(newRefresh);
+                return true;
+            } catch {
+                return false;
+            } finally {
+                refreshInFlight = null;
+            }
+        })();
+    }
+    return refreshInFlight;
+}
+
 /** Core fetch wrapper with JWT */
 async function apiFetch<T = any>(
     path: string,
     options: RequestInit = {},
+    retried = false,
 ): Promise<{ success: boolean; data: T; type?: string; message?: string; total?: number }> {
     const token = getToken();
     const headers: Record<string, string> = {
@@ -41,7 +82,11 @@ async function apiFetch<T = any>(
         headers,
     });
 
-    if (response.status === 401) {
+    if (response.status === 401 && !retried && !path.startsWith('/auth/')) {
+        const refreshed = await tryRefreshToken();
+        if (refreshed) {
+            return apiFetch<T>(path, options, true);
+        }
         clearToken();
         window.location.href = '/login';
         throw new Error('Unauthorized');

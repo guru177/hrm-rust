@@ -34,6 +34,7 @@ pub struct CreateJobApplicationRequest {
     pub phone: Option<String>,
     pub cover_letter: Option<String>,
     pub date_of_birth: Option<String>,
+    pub applied_position: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

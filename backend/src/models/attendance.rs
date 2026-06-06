@@ -7,27 +7,58 @@ pub struct Attendance {
     pub date: String,
     pub clock_in: Option<String>,
     pub clock_out: Option<String>,
-    pub status: Option<String>,
+    pub duration_minutes: Option<i64>,
+    pub is_late: bool,
+    pub is_early_exit: bool,
     pub notes: Option<String>,
-    pub clock_in_lat: Option<f64>,
-    pub clock_in_lng: Option<f64>,
-    pub clock_in_photo: Option<String>,
+    pub status: Option<String>,
+    pub clock_in_location: Option<String>,
+    pub clock_in_face_match_score: Option<f64>,
+    pub clock_in_face_verified: bool,
+    pub source: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GeoLocation {
+    pub lat: f64,
+    pub lng: f64,
+    pub accuracy: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IpLocation {
+    pub ip: Option<String>,
+    pub city: Option<String>,
+    pub region: Option<String>,
+    pub country: Option<String>,
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LocationPayload {
+    pub geo: GeoLocation,
+    pub ip: IpLocation,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ClockInRequest {
+    pub face_verified: Option<bool>,
+    pub face_match_score: Option<f64>,
+    pub location: Option<LocationPayload>,
     pub lat: Option<f64>,
     pub lng: Option<f64>,
     pub photo: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct MarkAttendanceRequest {
-    pub date: String,
-    pub status: String,
-    pub notes: Option<String>,
+pub struct AttendanceListQuery {
+    pub search: Option<String>,
+    pub status: Option<String>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
 }
 
 impl Attendance {
@@ -38,13 +69,17 @@ impl Attendance {
             date: row.get("date")?,
             clock_in: row.get("clock_in")?,
             clock_out: row.get("clock_out")?,
-            status: row.get("status")?,
-            notes: row.get("notes")?,
-            clock_in_lat: row.get("clock_in_lat").ok(),
-            clock_in_lng: row.get("clock_in_lng").ok(),
-            clock_in_photo: row.get("clock_in_photo").ok(),
-            created_at: row.get("created_at")?,
-            updated_at: row.get("updated_at")?,
+            duration_minutes: row.get("duration_minutes").ok(),
+            is_late: row.get::<_, i64>("is_late").unwrap_or(0) != 0,
+            is_early_exit: row.get::<_, i64>("is_early_exit").unwrap_or(0) != 0,
+            notes: row.get("notes").ok(),
+            status: row.get("status").ok(),
+            clock_in_location: row.get("clock_in_location").ok(),
+            clock_in_face_match_score: row.get("clock_in_face_match_score").ok(),
+            clock_in_face_verified: row.get::<_, i64>("clock_in_face_verified").unwrap_or(0) != 0,
+            source: row.get("source").ok(),
+            created_at: row.get("created_at").ok(),
+            updated_at: row.get("updated_at").ok(),
         })
     }
 }

@@ -42,7 +42,7 @@ pub async fn login(
     }
 
     // Get user permissions
-    let permissions = get_user_permissions(&conn, user.id, user.is_super_admin);
+    let permissions = crate::middleware::rbac::load_user_permissions(&conn, user.id, user.is_super_admin);
 
     // Generate JWT token
     let expiration_hours: u64 = std::env::var("JWT_EXPIRATION_HOURS")
@@ -63,6 +63,16 @@ pub async fn login(
                 .json(ApiError::new("Failed to generate token"))
         }
     };
+
+    let refresh_token = uuid::Uuid::new_v4().to_string();
+    let refresh_expires = (chrono::Utc::now() + chrono::Duration::days(7))
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+    let _ = conn.execute(
+        "INSERT INTO jwt_refresh_tokens (user_id, token, expires_at, created_at, revoked)
+         VALUES (?1, ?2, ?3, datetime('now'), 0)",
+        rusqlite::params![user.id, &refresh_token, &refresh_expires],
+    );
 
     // Load roles for response
     let roles = load_user_roles(&conn, user.id);
@@ -103,6 +113,7 @@ pub async fn login(
     #[derive(serde::Serialize)]
     struct LoginResponseExt {
         token: String,
+        refresh_token: String,
         user: crate::models::user::UserSummary,
         permissions: Vec<String>,
         settings: std::collections::HashMap<String, String>,
@@ -110,6 +121,7 @@ pub async fn login(
 
     let response = LoginResponseExt {
         token,
+        refresh_token,
         user: summary,
         permissions,
         settings,
@@ -142,7 +154,7 @@ pub async fn me(
         Err(_) => return HttpResponse::NotFound().json(ApiError::new("User not found")),
     };
 
-    let permissions = get_user_permissions(&conn, user.id, user.is_super_admin);
+    let permissions = crate::middleware::rbac::load_user_permissions(&conn, user.id, user.is_super_admin);
     let roles = load_user_roles(&conn, user.id);
 
     let mut summary = user.to_summary();
@@ -192,41 +204,104 @@ pub async fn me(
     }))
 }
 
-/// POST /api/auth/logout
-pub async fn logout() -> HttpResponse {
-    // With JWT, logout is handled client-side by removing the token.
-    // We return success for API compatibility.
+#[derive(serde::Deserialize)]
+pub struct RefreshTokenRequest {
+    pub refresh_token: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct LogoutRequest {
+    pub refresh_token: Option<String>,
+}
+
+/// POST /api/auth/refresh — exchange refresh token for new access token
+pub async fn refresh(
+    pool: web::Data<DbPool>,
+    jwt_secret: web::Data<Arc<String>>,
+    body: web::Json<RefreshTokenRequest>,
+) -> HttpResponse {
+    let conn = match pool.get() {
+        Ok(c) => c,
+        Err(_) => return HttpResponse::InternalServerError().json(ApiError::new("Database error")),
+    };
+
+    let row: Option<(i64, String, bool)> = conn
+        .query_row(
+            "SELECT user_id, expires_at, revoked FROM jwt_refresh_tokens WHERE token=?1",
+            [&body.refresh_token],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0)),
+        )
+        .ok();
+
+    let Some((user_id, expires_at, revoked)) = row else {
+        return HttpResponse::Unauthorized().json(ApiError::new("Invalid refresh token"));
+    };
+    if revoked {
+        return HttpResponse::Unauthorized().json(ApiError::new("Refresh token revoked"));
+    }
+    let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    if expires_at < now {
+        return HttpResponse::Unauthorized().json(ApiError::new("Refresh token expired"));
+    }
+
+    let user = match conn.query_row(
+        "SELECT * FROM users WHERE id=?1 AND deleted_at IS NULL",
+        [user_id],
+        User::from_row,
+    ) {
+        Ok(u) => u,
+        Err(_) => return HttpResponse::Unauthorized().json(ApiError::new("User not found")),
+    };
+
+    let expiration_hours: u64 = std::env::var("JWT_EXPIRATION_HOURS")
+        .unwrap_or_else(|_| "24".to_string())
+        .parse()
+        .unwrap_or(24);
+
+    let token = match generate_token(user.id, &user.email, user.is_super_admin, &jwt_secret, expiration_hours) {
+        Ok(t) => t,
+        Err(_) => return HttpResponse::InternalServerError().json(ApiError::new("Failed to generate token")),
+    };
+
+    // Rotate refresh token: revoke old, issue new
+    let new_refresh = uuid::Uuid::new_v4().to_string();
+    let refresh_expires = (chrono::Utc::now() + chrono::Duration::days(7))
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+    let _ = conn.execute(
+        "UPDATE jwt_refresh_tokens SET revoked=1 WHERE token=?1",
+        [&body.refresh_token],
+    );
+    let _ = conn.execute(
+        "INSERT INTO jwt_refresh_tokens (user_id, token, expires_at, created_at, revoked)
+         VALUES (?1, ?2, ?3, ?4, 0)",
+        rusqlite::params![user_id, &new_refresh, &refresh_expires, &now],
+    );
+
+    HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
+        "token": token,
+        "refresh_token": new_refresh,
+    })))
+}
+
+/// POST /api/auth/logout — revoke refresh token server-side
+pub async fn logout(pool: web::Data<DbPool>, body: Option<web::Json<LogoutRequest>>) -> HttpResponse {
+    if let Some(ref req) = body {
+        if let Some(ref rt) = req.refresh_token {
+            if let Ok(conn) = pool.get() {
+                let _ = conn.execute(
+                    "UPDATE jwt_refresh_tokens SET revoked=1 WHERE token=?1",
+                    [rt],
+                );
+            }
+        }
+    }
     HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({
         "message": "Successfully logged out"
     })))
 }
 
 // Helper functions
-
-fn get_user_permissions(
-    conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>,
-    user_id: i64,
-    is_super_admin: bool,
-) -> Vec<String> {
-    if is_super_admin {
-        return vec!["*".to_string()];
-    }
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT DISTINCT p.slug
-             FROM permissions p
-             JOIN permission_role pr ON p.id = pr.permission_id
-             JOIN role_user ru ON pr.role_id = ru.role_id
-             WHERE ru.user_id = ?1",
-        )
-        .unwrap();
-
-    stmt.query_map([user_id], |row| row.get::<_, String>(0))
-        .unwrap()
-        .filter_map(|r| r.ok())
-        .collect()
-}
 
 fn load_user_roles(
     conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>,

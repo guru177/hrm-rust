@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
+import { handleApiError } from '@/lib/toast';
 import {
     TrendingUp,
     DollarSign,
@@ -221,7 +222,7 @@ export default function Dashboard() {
         document.title = 'Dashboard — HRM Portal';
         apiGet<HRDashboardData>('/admin/dashboard/hr-data')
             .then((res) => setHrData(res.data))
-            .catch(() => {})
+            .catch((err) => handleApiError(err))
             .finally(() => setLoading(false));
     }, []);
 

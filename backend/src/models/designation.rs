@@ -6,7 +6,7 @@ pub struct Designation {
     pub name: String,
     pub slug: String,
     pub description: Option<String>,
-    pub department_id: Option<i64>,
+    pub level: Option<i64>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
@@ -15,7 +15,9 @@ pub struct Designation {
 pub struct CreateDesignationRequest {
     pub name: String,
     pub description: Option<String>,
-    pub department_id: Option<i64>,
+    pub level: Option<i64>,
+    #[serde(default)]
+    pub is_active: Option<bool>,
 }
 
 impl Designation {
@@ -25,7 +27,7 @@ impl Designation {
             name: row.get("name")?,
             slug: row.get("slug")?,
             description: row.get("description")?,
-            department_id: row.get("department_id")?,
+            level: row.get("level").ok().flatten(),
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })

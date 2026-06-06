@@ -29,6 +29,12 @@ import {
 } from '@/components/ui/table';
 import { handleApiError } from '@/lib/toast';
 
+interface ShiftInfo {
+    template_name?: string;
+    start_time?: string;
+    end_time?: string;
+}
+
 interface AttendanceRecord {
     id: number;
     user_id: number;
@@ -44,6 +50,8 @@ interface AttendanceRecord {
     is_late: boolean;
     is_early_exit: boolean;
     status: string;
+    source?: string;
+    shift?: ShiftInfo | null;
 }
 
 export default function AttendanceTable() {
@@ -75,12 +83,14 @@ export default function AttendanceTable() {
             });
 
             if (response.data.success) {
-                setRecords(Array.isArray(response.data.data) ? response.data.data : (response.data.data?.data || []));
-                setCurrentPage((Array.isArray(response.data.data) ? 1 : response.data.data?.current_page) || 1);
-                setLastPage((Array.isArray(response.data.data) ? 1 : response.data.data?.last_page) || 1);
-                setTotal((Array.isArray(response.data.data) ? response.data.data.length : response.data.data?.total) || 0);
-                setFrom((Array.isArray(response.data.data) ? 1 : response.data.data?.from) || 0);
-                setTo((Array.isArray(response.data.data) ? response.data.data.length : response.data.data?.to) || 0);
+                const payload = response.data.data;
+                const rows = Array.isArray(payload) ? payload : (payload?.data ?? []);
+                setRecords(rows);
+                setCurrentPage(payload?.current_page ?? 1);
+                setLastPage(payload?.last_page ?? 1);
+                setTotal(payload?.total ?? rows.length);
+                setFrom(payload?.from ?? (rows.length ? 1 : 0));
+                setTo(payload?.to ?? rows.length);
             }
         } catch (error) {
             handleApiError(error);
@@ -110,6 +120,16 @@ export default function AttendanceTable() {
             minute: '2-digit',
             hour12: true,
         });
+    };
+
+    const formatShiftTime = (value?: string) => {
+        if (!value) return '';
+        const part = value.includes('T') ? value.split('T')[1]?.slice(0, 5) : value.slice(0, 5);
+        const [h, m] = part.split(':').map(Number);
+        if (Number.isNaN(h) || Number.isNaN(m)) return value;
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
     };
 
     return (
@@ -183,15 +203,17 @@ export default function AttendanceTable() {
                                 <TableHead>Employee</TableHead>
                                 <TableHead>Clock In</TableHead>
                                 <TableHead>Clock Out</TableHead>
+                                <TableHead>Shift</TableHead>
                                 <TableHead>Duration</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead>Source</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={6}
+                                        colSpan={8}
                                         className="text-center py-8"
                                     >
                                         <div className="flex items-center justify-center">
@@ -202,7 +224,7 @@ export default function AttendanceTable() {
                             ) : records.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={6}
+                                        colSpan={8}
                                         className="text-center py-8 text-muted-foreground"
                                     >
                                         No records found
@@ -245,12 +267,32 @@ export default function AttendanceTable() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
+                                            {record.shift?.template_name ? (
+                                                <div>
+                                                    <p className="text-sm font-medium">{record.shift.template_name}</p>
+                                                    {(record.shift.start_time || record.shift.end_time) && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {formatShiftTime(record.shift.start_time)}
+                                                            {record.shift.end_time ? ` – ${formatShiftTime(record.shift.end_time)}` : ''}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted-foreground text-sm">Default</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
                                             {record.duration_minutes
                                                 ? `${Math.floor(record.duration_minutes / 60)}h ${record.duration_minutes % 60}m`
                                                 : '--'}
                                         </TableCell>
                                         <TableCell>
                                             {getStatusBadge(record.status)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className="capitalize">
+                                                {record.source || 'manual'}
+                                            </Badge>
                                         </TableCell>
                                     </TableRow>
                                 ))

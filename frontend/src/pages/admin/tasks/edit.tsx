@@ -40,18 +40,12 @@ interface User {
 interface Props {
     task?: Task;
     users?: User[];
-    contacts?: Array<{ id: number; name: string }>;
-    companies?: Array<{ id: number; name: string }>;
-    leads?: Array<{ id: number; name: string }>;
     projects?: Array<{ id: number; name: string }>;
 }
 
 export default function Edit({
     task = {} as Task,
     users = [],
-    contacts = [],
-    companies = [],
-    leads = [],
     projects = [],
 }: Props) {
     const navigate = useNavigate();
@@ -108,18 +102,10 @@ export default function Edit({
     };
 
     const getRelatedOptions = () => {
-        switch (formData.related_type) {
-            case 'contact':
-                return contacts;
-            case 'company':
-                return companies;
-            case 'lead':
-                return leads;
-            case 'project':
-                return projects;
-            default:
-                return [];
+        if (formData.related_type === 'project') {
+            return projects;
         }
+        return [];
     };
 
     return (
@@ -429,13 +415,6 @@ export default function Edit({
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="none">None</SelectItem>
-                                            <SelectItem value="contact">
-                                                Contact
-                                            </SelectItem>
-                                            <SelectItem value="company">
-                                                Company
-                                            </SelectItem>
-                                            <SelectItem value="lead">Lead</SelectItem>
                                             <SelectItem value="project">Project</SelectItem>
                                         </SelectContent>
                                     </Select>

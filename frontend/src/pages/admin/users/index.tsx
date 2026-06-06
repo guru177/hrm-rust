@@ -69,7 +69,7 @@ export default function UsersIndex() {
                 setStats(response.data.data);
             }
         } catch (error) {
-            console.error('Failed to fetch stats:', error);
+            handleApiError(error);
         }
     };
 
@@ -80,7 +80,7 @@ export default function UsersIndex() {
                 setRoleStats(response.data.data);
             }
         } catch (error) {
-            console.error('Failed to fetch role stats:', error);
+            handleApiError(error);
         }
     };
 
@@ -91,7 +91,7 @@ export default function UsersIndex() {
                 setRoles(response.data.data);
             }
         } catch (error) {
-            console.error('Failed to fetch roles:', error);
+            handleApiError(error);
         }
     };
 
@@ -102,7 +102,7 @@ export default function UsersIndex() {
                 setPermissions(response.data.data);
             }
         } catch (error) {
-            console.error('Failed to fetch permissions:', error);
+            handleApiError(error);
         }
     };
 

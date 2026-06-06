@@ -13,8 +13,12 @@ import {
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 
-// Path where face-api model files are served from (public/face-models/)
-const FACE_MODELS_PATH = '/face-models';
+// Prefer local models in public/face-models; fallback to CDN when missing.
+const FACE_MODEL_PATH_CANDIDATES = [
+    '/face-models',
+    'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model',
+    'https://unpkg.com/@vladmandic/face-api/model',
+];
 // Euclidean distance threshold for the 128-dim face recognition embedding.
 // Same person (photo vs live): typically < 0.45 | Different person: typically > 0.55
 const FACE_DISTANCE_THRESHOLD = 0.50;
@@ -77,8 +81,10 @@ export default function ClockInFaceDialog({
     const [error, setError] = useState<string | null>(null);
     const [permissionsGranted, setPermissionsGranted] = useState(false);
     const [debugInfo, setDebugInfo] = useState<{ frames: number[]; avg: number; passed: boolean } | null>(null);
+    const activeModelPathRef = useRef<string | null>(null);
 
-    const isReady = modelsReady && cameraReady && locationData;
+    const skipFaceVerification = !userPhotoUrl;
+    const isReady = locationData && (skipFaceVerification || (modelsReady && cameraReady));
 
     useEffect(() => {
         if (!open) {
@@ -100,12 +106,14 @@ export default function ClockInFaceDialog({
         void checkExistingPermissions();
     }, [open]);
 
-    // Once both permissions are granted, proceed with loading
+    // Once required permissions are granted, proceed with loading
     useEffect(() => {
-        if (cameraStatus === 'granted' && locationStatus === 'granted') {
+        if (skipFaceVerification && locationStatus === 'granted') {
+            setPermissionsGranted(true);
+        } else if (cameraStatus === 'granted' && locationStatus === 'granted') {
             setPermissionsGranted(true);
         }
-    }, [cameraStatus, locationStatus]);
+    }, [cameraStatus, locationStatus, skipFaceVerification]);
 
     const checkExistingPermissions = async () => {
         try {
@@ -143,16 +151,25 @@ export default function ClockInFaceDialog({
 
     const requestAllPermissions = async () => {
         setError(null);
-        if (cameraStatus !== 'granted') {
+        if (!skipFaceVerification && cameraStatus !== 'granted') {
             setCameraStatus('pending');
         }
         if (locationStatus !== 'granted') {
             setLocationStatus('pending');
         }
         await Promise.all([
-            cameraStatus !== 'granted' ? startCamera() : Promise.resolve(),
+            !skipFaceVerification && cameraStatus !== 'granted' ? startCamera() : Promise.resolve(),
             locationStatus !== 'granted' ? loadLocation() : Promise.resolve(),
         ]);
+    };
+
+    const handleClockInWithoutFace = () => {
+        if (!locationData) return;
+        onVerify({
+            face_verified: false,
+            face_match_score: null,
+            location: locationData,
+        });
     };
 
     const startCamera = async () => {
@@ -192,28 +209,67 @@ export default function ClockInFaceDialog({
         });
     };
 
+    const resolveWorkingModelPath = async (): Promise<string | null> => {
+        const probeFile = 'ssd_mobilenetv1_model-weights_manifest.json';
+        for (const candidate of FACE_MODEL_PATH_CANDIDATES) {
+            try {
+                const res = await fetch(`${candidate}/${probeFile}`, {
+                    method: 'GET',
+                    cache: 'no-store',
+                });
+                if (!res.ok) continue;
+                const text = await res.text();
+                // Vite can return index.html for missing local assets (200 + <!DOCTYPE...>).
+                // Validate this is actual manifest JSON before selecting the candidate.
+                if (text.trimStart().startsWith('<')) continue;
+                const parsed = JSON.parse(text) as Array<{ paths?: string[]; weights?: unknown }>;
+                if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.weights) {
+                    const firstShard = parsed[0]?.paths?.[0];
+                    if (!firstShard) continue;
+                    // Ensure shard binary is also reachable, not just the manifest.
+                    const shardRes = await fetch(`${candidate}/${firstShard}`, {
+                        method: 'GET',
+                        cache: 'no-store',
+                    });
+                    if (!shardRes.ok) continue;
+                    return candidate;
+                }
+            } catch {
+                // keep trying next candidate
+            }
+        }
+        return null;
+    };
+
     const loadModels = async () => {
         if (modelsLoadedRef.current || modelsLoading) {
             return;
         }
 
         if (!userPhotoUrl) {
-            setError('Add a profile photo before using face match.');
             return;
         }
 
         setModelsLoading(true);
         try {
-            // Load the 3 required nets (detection + landmarks + 128-dim recognition embedding)
+            const modelPath = activeModelPathRef.current ?? (await resolveWorkingModelPath());
+            if (!modelPath) {
+                setError(
+                    'Face models are unavailable. Add model files to frontend/public/face-models or allow internet access for CDN fallback.',
+                );
+                return;
+            }
+            activeModelPathRef.current = modelPath;
+
+            // Load required nets (detection + landmarks + recognition embedding)
             await Promise.all([
-                faceapi.nets.ssdMobilenetv1.loadFromUri(FACE_MODELS_PATH),
-                faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODELS_PATH),
-                faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODELS_PATH),
+                faceapi.nets.ssdMobilenetv1.loadFromUri(modelPath),
+                faceapi.nets.faceLandmark68Net.loadFromUri(modelPath),
+                faceapi.nets.faceRecognitionNet.loadFromUri(modelPath),
             ]);
 
-            // Use proxy endpoint to avoid CORS issues with CloudFront
-            const proxyUrl = `/proxy/image?url=${encodeURIComponent(userPhotoUrl)}`;
-            const referenceImage = await loadImageElement(proxyUrl);
+            // Load reference image directly; user photos are served from same app domain.
+            const referenceImage = await loadImageElement(userPhotoUrl);
 
             const detection = await faceapi
                 .detectSingleFace(referenceImage, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
@@ -228,8 +284,11 @@ export default function ClockInFaceDialog({
             referenceDescriptorRef.current = detection.descriptor;
             modelsLoadedRef.current = true;
             setModelsReady(true);
-        } catch {
-            setError('Unable to initialize face detection. Check your internet connection.');
+        } catch (e) {
+            console.error('Face model init failed:', e);
+            setError(
+                `Unable to initialize face detection. Model source: ${activeModelPathRef.current ?? 'not resolved'}.`,
+            );
         } finally {
             setModelsLoading(false);
         }
@@ -411,11 +470,13 @@ export default function ClockInFaceDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
-                    <DialogTitle>Verify your face</DialogTitle>
+                    <DialogTitle>{skipFaceVerification ? 'Confirm clock in' : 'Verify your face'}</DialogTitle>
                     <DialogDescription>
-                        {permissionsGranted
-                            ? 'Position your face in the camera and click verify.'
-                            : 'Camera and location permissions are required to clock in. Please grant access to continue.'}
+                        {skipFaceVerification
+                            ? 'Location permission is required to clock in. Face verification is optional when no profile photo is set.'
+                            : permissionsGranted
+                                ? 'Position your face in the camera and click verify.'
+                                : 'Camera and location permissions are required to clock in. Please grant access to continue.'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -520,7 +581,7 @@ export default function ClockInFaceDialog({
                 )}
 
                 {/* Verification step — shown after permissions granted */}
-                {permissionsGranted && (
+                {permissionsGranted && !skipFaceVerification && (
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <p className="text-sm font-medium">Camera</p>
@@ -645,11 +706,11 @@ export default function ClockInFaceDialog({
                     {permissionsGranted && (
                         <Button
                             type="button"
-                            onClick={handleVerify}
-                            disabled={!isReady || busy || modelsLoading || locationLoading}
+                            onClick={skipFaceVerification ? handleClockInWithoutFace : handleVerify}
+                            disabled={!isReady || busy || (!skipFaceVerification && (modelsLoading || locationLoading))}
                         >
                             {busy && <Spinner size="sm" className="mr-2" />}
-                            {busy ? 'Clocking In...' : 'Verify & Clock In'}
+                            {busy ? 'Clocking In...' : skipFaceVerification ? 'Clock In' : 'Verify & Clock In'}
                         </Button>
                     )}
                 </DialogFooter>

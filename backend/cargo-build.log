@@ -1,0 +1,398 @@
+﻿cargo :    Compiling hrm-backend v0.1.0 (C:\Users\ASUS\Pictures\HRM\backend)
+At C:\Users\ASUS\AppData\Local\Temp\ps-script-c96f9829-712f-4f5c-8c13-99c64d2cbe37.ps1:87 char:50
++ ... Location c:\Users\ASUS\Pictures\HRM\backend; cargo build 2>&1 | Out-F ...
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling hr...es\HRM\backend):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: unused import: `LoginResponse`
+ --> src\handlers\auth.rs:6:41
+  |
+6 | use crate::models::user::{LoginRequest, LoginResponse, User};
+  |                                         ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Serialize`
+ --> src\handlers\job_applications.rs:2:26
+  |
+2 | use serde::{Deserialize, Serialize};
+  |                          ^^^^^^^^^
+
+warning: unused import: `Mechanism`
+ --> src\handlers\job_applications.rs:5:60
+  |
+5 | use lettre::transport::smtp::authentication::{Credentials, Mechanism};
+  |                                                            ^^^^^^^^^
+
+warning: unused imports: `BiometricPunch` and `BiometricUserMap`
+  --> src\handlers\biometric.rs:13:49
+   |
+13 | use crate::models::biometric::{BiometricDevice, BiometricPunch, BiometricUserMap, IClockQuery, UserMapRequest};
+   |                                                 ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+
+error[E0277]: the trait bound `MiddlewareFn<..., _>: Transform<..., ...>` is not satisfied
+   --> src\main.rs:64:19
+    |
+ 64 |               .wrap(actix_web::middleware::from_fn(
+    |  ______________----_^
+    | |              |
+    | |              required by a bound introduced by this call
+ 65 | |                 crate::middleware::rbac::rbac_middleware,
+ 66 | |             ))
+    | |_____________^ unsatisfied trait bound
+    |
+    = help: the trait `Transform<<impl ServiceFactory<ServiceRequest, Config = (), Response = 
+ServiceResponse<actix_web::middleware::logger::StreamLog<EitherBody<BoxBody>>>, Error = actix_web::Error, InitError = 
+()> as ServiceFactory<ServiceRequest>>::Service, ServiceRequest>` is not implemented for 
+`MiddlewareFn<fn(ServiceRequest, ...) -> ... {rbac_middleware}, _>`
+    = help: the following other types implement trait `Transform<S, Req>`:
+              actix_web::middleware::from_fn::MiddlewareFn<F, ()>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7, E8)>
+            and 2 others
+note: required by a bound in `App::<T>::wrap`
+   --> C:\Users\ASUS\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\actix-web-4.13.0\src\app.rs:358:12
+    |
+345 |       pub fn wrap<M, B>(
+    |              ---- required by a bound in this associated function
+...
+358 |           M: Transform<
+    |  ____________^
+359 | |                 T::Service,
+360 | |                 ServiceRequest,
+361 | |                 Response = ServiceResponse<B>,
+362 | |                 Error = Error,
+363 | |                 InitError = (),
+364 | |             > + 'static,
+    | |_____________^ required by this bound in `App::<T>::wrap`
+    = note: the full name for the type has been written to 
+'C:\Users\ASUS\Pictures\HRM\backend\target\debug\deps\hrm_backend.long-type-369245901548907531.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `MiddlewareFn<..., _>: Transform<..., ...>` is not satisfied
+   --> src\main.rs:61:9
+    |
+ 61 | /         App::new()
+ 62 | |             .wrap(cors)
+ 63 | |             .wrap(actix_middleware::Logger::default())
+ 64 | |             .wrap(actix_web::middleware::from_fn(
+ 65 | |                 crate::middleware::rbac::rbac_middleware,
+ 66 | |             ))
+ 67 | |             .app_data(pool.clone())
+    | |___________________________________^ unsatisfied trait bound
+    |
+    = help: the trait `Transform<<impl ServiceFactory<ServiceRequest, Config = (), Response = 
+ServiceResponse<actix_web::middleware::logger::StreamLog<EitherBody<BoxBody>>>, Error = actix_web::Error, InitError = 
+()> as ServiceFactory<ServiceRequest>>::Service, ServiceRequest>` is not implemented for 
+`MiddlewareFn<fn(ServiceRequest, ...) -> ... {rbac_middleware}, _>`
+    = help: the following other types implement trait `Transform<S, Req>`:
+              actix_web::middleware::from_fn::MiddlewareFn<F, ()>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7, E8)>
+            and 2 others
+note: required by a bound in `App::<T>::wrap`
+   --> C:\Users\ASUS\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\actix-web-4.13.0\src\app.rs:358:12
+    |
+345 |       pub fn wrap<M, B>(
+    |              ---- required by a bound in this associated function
+...
+358 |           M: Transform<
+    |  ____________^
+359 | |                 T::Service,
+360 | |                 ServiceRequest,
+361 | |                 Response = ServiceResponse<B>,
+362 | |                 Error = Error,
+363 | |                 InitError = (),
+364 | |             > + 'static,
+    | |_____________^ required by this bound in `App::<T>::wrap`
+    = note: the full name for the type has been written to 
+'C:\Users\ASUS\Pictures\HRM\backend\target\debug\deps\hrm_backend.long-type-369245901548907531.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `MiddlewareFn<..., _>: Transform<..., ...>` is not satisfied
+   --> src\main.rs:61:9
+    |
+ 61 | /         App::new()
+ 62 | |             .wrap(cors)
+ 63 | |             .wrap(actix_middleware::Logger::default())
+ 64 | |             .wrap(actix_web::middleware::from_fn(
+...   |
+ 67 | |             .app_data(pool.clone())
+ 68 | |             .app_data(jwt_secret.clone())
+    | |_________________________________________^ unsatisfied trait bound
+    |
+    = help: the trait `Transform<<impl ServiceFactory<ServiceRequest, Config = (), Response = 
+ServiceResponse<actix_web::middleware::logger::StreamLog<EitherBody<BoxBody>>>, Error = actix_web::Error, InitError = 
+()> as ServiceFactory<ServiceRequest>>::Service, ServiceRequest>` is not implemented for 
+`MiddlewareFn<fn(ServiceRequest, ...) -> ... {rbac_middleware}, _>`
+    = help: the following other types implement trait `Transform<S, Req>`:
+              actix_web::middleware::from_fn::MiddlewareFn<F, ()>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7, E8)>
+            and 2 others
+note: required by a bound in `App::<T>::wrap`
+   --> C:\Users\ASUS\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\actix-web-4.13.0\src\app.rs:358:12
+    |
+345 |       pub fn wrap<M, B>(
+    |              ---- required by a bound in this associated function
+...
+358 |           M: Transform<
+    |  ____________^
+359 | |                 T::Service,
+360 | |                 ServiceRequest,
+361 | |                 Response = ServiceResponse<B>,
+362 | |                 Error = Error,
+363 | |                 InitError = (),
+364 | |             > + 'static,
+    | |_____________^ required by this bound in `App::<T>::wrap`
+    = note: the full name for the type has been written to 
+'C:\Users\ASUS\Pictures\HRM\backend\target\debug\deps\hrm_backend.long-type-369245901548907531.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `MiddlewareFn<..., _>: Transform<..., ...>` is not satisfied
+   --> src\main.rs:61:9
+    |
+ 61 | /         App::new()
+ 62 | |             .wrap(cors)
+ 63 | |             .wrap(actix_middleware::Logger::default())
+ 64 | |             .wrap(actix_web::middleware::from_fn(
+...   |
+ 68 | |             .app_data(jwt_secret.clone())
+ 69 | |             .app_data(events.clone())
+    | |_____________________________________^ unsatisfied trait bound
+    |
+    = help: the trait `Transform<<impl ServiceFactory<ServiceRequest, Config = (), Response = 
+ServiceResponse<actix_web::middleware::logger::StreamLog<EitherBody<BoxBody>>>, Error = actix_web::Error, InitError = 
+()> as ServiceFactory<ServiceRequest>>::Service, ServiceRequest>` is not implemented for 
+`MiddlewareFn<fn(ServiceRequest, ...) -> ... {rbac_middleware}, _>`
+    = help: the following other types implement trait `Transform<S, Req>`:
+              actix_web::middleware::from_fn::MiddlewareFn<F, ()>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7, E8)>
+            and 2 others
+note: required by a bound in `App::<T>::wrap`
+   --> C:\Users\ASUS\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\actix-web-4.13.0\src\app.rs:358:12
+    |
+345 |       pub fn wrap<M, B>(
+    |              ---- required by a bound in this associated function
+...
+358 |           M: Transform<
+    |  ____________^
+359 | |                 T::Service,
+360 | |                 ServiceRequest,
+361 | |                 Response = ServiceResponse<B>,
+362 | |                 Error = Error,
+363 | |                 InitError = (),
+364 | |             > + 'static,
+    | |_____________^ required by this bound in `App::<T>::wrap`
+    = note: the full name for the type has been written to 
+'C:\Users\ASUS\Pictures\HRM\backend\target\debug\deps\hrm_backend.long-type-369245901548907531.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `MiddlewareFn<..., _>: Transform<..., ...>` is not satisfied
+   --> src\main.rs:61:9
+    |
+ 61 | /         App::new()
+ 62 | |             .wrap(cors)
+ 63 | |             .wrap(actix_middleware::Logger::default())
+ 64 | |             .wrap(actix_web::middleware::from_fn(
+...   |
+ 69 | |             .app_data(events.clone())
+ 70 | |             .configure(routes::configure)
+    | |_________________________________________^ unsatisfied trait bound
+    |
+    = help: the trait `Transform<<impl ServiceFactory<ServiceRequest, Config = (), Response = 
+ServiceResponse<actix_web::middleware::logger::StreamLog<EitherBody<BoxBody>>>, Error = actix_web::Error, InitError = 
+()> as ServiceFactory<ServiceRequest>>::Service, ServiceRequest>` is not implemented for 
+`MiddlewareFn<fn(ServiceRequest, ...) -> ... {rbac_middleware}, _>`
+    = help: the following other types implement trait `Transform<S, Req>`:
+              actix_web::middleware::from_fn::MiddlewareFn<F, ()>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7, E8)>
+            and 2 others
+note: required by a bound in `App::<T>::wrap`
+   --> C:\Users\ASUS\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\actix-web-4.13.0\src\app.rs:358:12
+    |
+345 |       pub fn wrap<M, B>(
+    |              ---- required by a bound in this associated function
+...
+358 |           M: Transform<
+    |  ____________^
+359 | |                 T::Service,
+360 | |                 ServiceRequest,
+361 | |                 Response = ServiceResponse<B>,
+362 | |                 Error = Error,
+363 | |                 InitError = (),
+364 | |             > + 'static,
+    | |_____________^ required by this bound in `App::<T>::wrap`
+    = note: the full name for the type has been written to 
+'C:\Users\ASUS\Pictures\HRM\backend\target\debug\deps\hrm_backend.long-type-369245901548907531.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `MiddlewareFn<..., _>: Transform<..., ...>` is not satisfied
+   --> src\main.rs:45:5
+    |
+ 45 |     HttpServer::new(move || {
+    |     ^^^^^^^^^^ unsatisfied trait bound
+    |
+    = help: the trait `Transform<<impl ServiceFactory<ServiceRequest, Config = (), Response = 
+ServiceResponse<actix_web::middleware::logger::StreamLog<EitherBody<BoxBody>>>, Error = actix_web::Error, InitError = 
+()> as ServiceFactory<ServiceRequest>>::Service, ServiceRequest>` is not implemented for 
+`MiddlewareFn<fn(ServiceRequest, ...) -> ... {rbac_middleware}, _>`
+    = help: the following other types implement trait `Transform<S, Req>`:
+              actix_web::middleware::from_fn::MiddlewareFn<F, ()>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7, E8)>
+            and 2 others
+note: required by a bound in `App::<T>::wrap`
+   --> C:\Users\ASUS\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\actix-web-4.13.0\src\app.rs:358:12
+    |
+345 |       pub fn wrap<M, B>(
+    |              ---- required by a bound in this associated function
+...
+358 |           M: Transform<
+    |  ____________^
+359 | |                 T::Service,
+360 | |                 ServiceRequest,
+361 | |                 Response = ServiceResponse<B>,
+362 | |                 Error = Error,
+363 | |                 InitError = (),
+364 | |             > + 'static,
+    | |_____________^ required by this bound in `App::<T>::wrap`
+    = note: the full name for the type has been written to 
+'C:\Users\ASUS\Pictures\HRM\backend\target\debug\deps\hrm_backend.long-type-369245901548907531.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0277]: the trait bound `MiddlewareFn<..., _>: Transform<..., ...>` is not satisfied
+   --> src\main.rs:45:5
+    |
+ 45 | /     HttpServer::new(move || {
+ 46 | |         let cors = Cors::default()
+ 47 | |             .allowed_origin("http://localhost:5173")
+ 48 | |             .allowed_origin("http://127.0.0.1:5173")
+...   |
+ 70 | |             .configure(routes::configure)
+ 71 | |     })
+    | |______^ unsatisfied trait bound
+    |
+    = help: the trait `Transform<<impl ServiceFactory<ServiceRequest, Config = (), Response = 
+ServiceResponse<actix_web::middleware::logger::StreamLog<EitherBody<BoxBody>>>, Error = actix_web::Error, InitError = 
+()> as ServiceFactory<ServiceRequest>>::Service, ServiceRequest>` is not implemented for 
+`MiddlewareFn<fn(ServiceRequest, ...) -> ... {rbac_middleware}, _>`
+    = help: the following other types implement trait `Transform<S, Req>`:
+              actix_web::middleware::from_fn::MiddlewareFn<F, ()>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7)>
+              actix_web::middleware::from_fn::MiddlewareFn<F, (E1, E2, E3, E4, E5, E6, E7, E8)>
+            and 2 others
+note: required by a bound in `App::<T>::wrap`
+   --> C:\Users\ASUS\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\actix-web-4.13.0\src\app.rs:358:12
+    |
+345 |       pub fn wrap<M, B>(
+    |              ---- required by a bound in this associated function
+...
+358 |           M: Transform<
+    |  ____________^
+359 | |                 T::Service,
+360 | |                 ServiceRequest,
+361 | |                 Response = ServiceResponse<B>,
+362 | |                 Error = Error,
+363 | |                 InitError = (),
+364 | |             > + 'static,
+    | |_____________^ required by this bound in `App::<T>::wrap`
+    = note: the full name for the type has been written to 
+'C:\Users\ASUS\Pictures\HRM\backend\target\debug\deps\hrm_backend.long-type-369245901548907531.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: the method `bind` exists for struct `HttpServer<{closure@main.rs:45:21}, App<...>, ..., _>`, but its 
+trait bounds were not satisfied
+  --> src\main.rs:72:6
+   |
+45 | /     HttpServer::new(move || {
+46 | |         let cors = Cors::default()
+47 | |             .allowed_origin("http://localhost:5173")
+48 | |             .allowed_origin("http://127.0.0.1:5173")
+...  |
+71 | |     })
+72 | |     .bind(format!("{host}:{port}"))?
+   | |     -^^^^ method cannot be called due to unsatisfied trait bounds
+   | |_____|
+   |
+   |
+  ::: 
+C:\Users\ASUS\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\actix-web-4.13.0\src\middleware\from_fn.rs:92:1
+   |
+92 |   pub struct MiddlewareFn<F, Es> {
+   |   ------------------------------ doesn't satisfy `_: Transform<<impl ServiceFactory<ServiceRequest, Config = (), 
+Response = ServiceResponse<StreamLog<EitherBody<BoxBody>>>, Error = Error, InitError = ()> as 
+ServiceFactory<ServiceRequest>>::Service, ServiceRequest>`
+   |
+   = note: the following trait bounds were not satisfied:
+           `actix_web::middleware::from_fn::MiddlewareFn<fn(ServiceRequest, actix_web::middleware::Next<BoxBody>) -> 
+impl futures_util::Future<Output = Result<ServiceResponse, actix_web::Error>> {rbac_middleware}, _>: Transform<<impl 
+ServiceFactory<ServiceRequest, Config = (), Response = 
+ServiceResponse<actix_web::middleware::logger::StreamLog<EitherBody<BoxBody>>>, Error = actix_web::Error, InitError = 
+()> as ServiceFactory<ServiceRequest>>::Service, ServiceRequest>`
+   = note: the full name for the type has been written to 
+'C:\Users\ASUS\Pictures\HRM\backend\target\debug\deps\hrm_backend.long-type-2506854871624793163.txt'
+   = note: consider using `--verbose` to print the full type name to the console
+
+warning: unused import: `HttpMessage`
+ --> src\middleware\auth.rs:1:45
+  |
+1 | use actix_web::{dev::ServiceRequest, Error, HttpMessage};
+  |                                             ^^^^^^^^^^^
+
+warning: unused variable: `claims`
+  --> src\handlers\users.rs:76:9
+   |
+76 |     let claims = match get_claims_from_request(&req) {
+   |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_claims`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sql`
+   --> src\handlers\users.rs:324:9
+    |
+324 |     let sql = format!(
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_sql`
+
+Some errors have detailed explanations: E0277, E0599.
+For more information about an error, try `rustc --explain E0277`.
+warning: `hrm-backend` (bin "hrm-backend") generated 7 warnings
+error: could not compile `hrm-backend` (bin "hrm-backend") due to 8 previous errors; 7 warnings emitted

@@ -48,20 +48,20 @@ export default function Password() {
             setRecentlySuccessful(true);
             setTimeout(() => setRecentlySuccessful(false), 2000);
         } catch (error: any) {
+            const flatErrors: Record<string, string> = {};
             if (error.response?.data?.errors) {
                 const errs = error.response.data.errors;
-                const flatErrors: Record<string, string> = {};
                 for (const key in errs) {
                     flatErrors[key] = Array.isArray(errs[key]) ? errs[key][0] : errs[key];
                 }
-                setErrors(flatErrors);
             }
+            setErrors(flatErrors);
             handleApiError(error);
 
-            if (errors.password) {
+            if (flatErrors.password) {
                 passwordInput.current?.focus();
             }
-            if (errors.current_password) {
+            if (flatErrors.current_password) {
                 currentPasswordInput.current?.focus();
             }
         } finally {

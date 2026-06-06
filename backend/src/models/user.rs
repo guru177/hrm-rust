@@ -132,10 +132,14 @@ pub struct UpdateUserRequest {
     pub account_number: Option<String>,
     pub ifsc_code: Option<String>,
     pub bank_name: Option<String>,
+    pub account_type: Option<String>,
     pub pan_number: Option<String>,
     pub esi_number: Option<String>,
     pub pf_number: Option<String>,
     pub aadhar_number: Option<String>,
+    
+    // Roles
+    pub roles: Option<Vec<i64>>,
 }
 
 impl User {

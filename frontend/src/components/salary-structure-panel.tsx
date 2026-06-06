@@ -1,5 +1,5 @@
 import axios from '@/lib/axios';
-import { Edit, Save, X } from 'lucide-react';
+import { Edit, Save, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -12,12 +12,24 @@ interface ComponentItem {
     salary_component_id: number;
     name: string;
     type: 'earning' | 'deduction' | 'reimbursement';
-    calculation_type: 'flat_amount' | 'percentage_of_basic' | null;
+    calculation_type: 'flat_amount' | 'percentage_of_basic' | 'percentage_of_ctc' | 'percentage_of_gross' | null;
     component_default_amount: string | null;
     is_pre_tax: boolean;
     deduction_frequency: 'recurring' | 'one_time' | null;
     assigned_amount: number | null;
     is_assigned: boolean;
+}
+
+interface CtcProfileContext {
+    yearly_ctc: number;
+    monthly_ctc: number;
+    template?: {
+        name: string;
+        basic_pct: number;
+        hra_pct: number;
+        conv_pct: number;
+        special_pct: number;
+    };
 }
 
 interface SalaryData {
@@ -26,6 +38,9 @@ interface SalaryData {
     gross_salary: number;
     total_deductions: number;
     net_salary: number;
+    ctc_locked?: boolean;
+    read_only_reason?: string | null;
+    ctc_profile?: CtcProfileContext | null;
 }
 
 type FormValues = Record<number, { enabled: boolean; amount: string }>;
@@ -33,13 +48,22 @@ type FormValues = Record<number, { enabled: boolean; amount: string }>;
 const fmt = (v: number) =>
     '\u20b9\u00a0' + v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function SalaryStructurePanel({ userId }: { userId: number }) {
+export function SalaryStructurePanel({
+    userId,
+    hasCtc = false,
+    onCtcChange,
+}: {
+    userId: number;
+    hasCtc?: boolean;
+    onCtcChange?: (hasCtc: boolean) => void;
+}) {
     const [data, setData] = useState<SalaryData | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [rawDebug, setRawDebug] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [clearingCtc, setClearingCtc] = useState(false);
     const [effectiveFrom, setEffectiveFrom] = useState('');
     const [formValues, setFormValues] = useState<FormValues>({});
 
@@ -104,26 +128,99 @@ export function SalaryStructurePanel({ userId }: { userId: number }) {
     }, [userId]);
 
 
+    const reloadStructure = () => {
+        setLoading(true);
+        setLoadError(null);
+        axios
+            .get<{ success: boolean; data: SalaryData | null; message?: string }>(
+                `/admin/users/${userId}/salary-structure`,
+            )
+            .then((res) => {
+                if (res.data.success && res.data.data?.components) {
+                    applyData(res.data.data);
+                }
+            })
+            .catch(handleApiError)
+            .finally(() => setLoading(false));
+    };
+
+    const handleRemoveCtc = async () => {
+        if (!confirm('Remove CTC profile? You can then set up manual salary components for payroll.')) return;
+        setClearingCtc(true);
+        try {
+            const res = await axios.delete(`/admin/users/${userId}/ctc-profile`);
+            handleApiResponse(res);
+            onCtcChange?.(false);
+            reloadStructure();
+        } catch (err) {
+            handleApiError(err);
+        } finally {
+            setClearingCtc(false);
+        }
+    };
+
+    const isLocked = hasCtc || data?.ctc_locked;
+
     // ID of the "Basic Salary" earning component (used to auto-compute percentage_of_basic)
     const basicId = data?.components.find(
         (c) => c.type === 'earning' && c.name.toLowerCase().includes('basic'),
     )?.salary_component_id;
 
+    const monthlyCtc = data?.ctc_profile?.monthly_ctc ?? 0;
+
+    const pctLabel = (c: ComponentItem) => {
+        if (c.calculation_type === 'percentage_of_ctc') {
+            return `(${c.component_default_amount}% of CTC)`;
+        }
+        if (c.calculation_type === 'percentage_of_gross') {
+            return `(${c.component_default_amount}% of Gross)`;
+        }
+        if (c.calculation_type === 'percentage_of_basic') {
+            return `(${c.component_default_amount}% of Basic)`;
+        }
+        return null;
+    };
+
+    const resolvePctAmount = (c: ComponentItem, basic: number, mctc: number, gross: number) => {
+        const pct = parseFloat(c.component_default_amount ?? '0') || 0;
+        if (c.calculation_type === 'percentage_of_ctc') {
+            return ((mctc * pct) / 100).toFixed(2);
+        }
+        if (c.calculation_type === 'percentage_of_gross') {
+            return ((gross * pct) / 100).toFixed(2);
+        }
+        if (c.calculation_type === 'percentage_of_basic') {
+            return ((basic * pct) / 100).toFixed(2);
+        }
+        return '';
+    };
+
+    const pctOfBasicComponents = (list: ComponentItem[]) =>
+        list.filter((c) => c.calculation_type === 'percentage_of_basic');
+
+    const grossMonthly = data?.gross_salary ?? monthlyCtc;
+
+    const applyPercentageFromBasic = (
+        updates: FormValues,
+        basic: number,
+        list: ComponentItem[],
+    ) => {
+        pctOfBasicComponents(list).forEach((c) => {
+            if (formValues[c.salary_component_id]?.enabled) {
+                updates[c.salary_component_id] = {
+                    ...formValues[c.salary_component_id],
+                    amount: resolvePctAmount(c, basic, monthlyCtc, grossMonthly),
+                };
+            }
+        });
+    };
+
     const handleAmountChange = (id: number, value: string) => {
         const updates: FormValues = { [id]: { ...formValues[id], amount: value } };
 
-        // When basic salary changes, recalculate all enabled percentage_of_basic components
         if (id === basicId && data) {
             const basic = parseFloat(value) || 0;
-            data.components.forEach((c) => {
-                if (c.calculation_type === 'percentage_of_basic' && formValues[c.salary_component_id]?.enabled) {
-                    const pct = parseFloat(c.component_default_amount ?? '0') || 0;
-                    updates[c.salary_component_id] = {
-                        ...formValues[c.salary_component_id],
-                        amount: ((basic * pct) / 100).toFixed(2),
-                    };
-                }
-            });
+            applyPercentageFromBasic(updates, basic, data.components);
         }
 
         setFormValues((prev) => ({ ...prev, ...updates }));
@@ -133,11 +230,11 @@ export function SalaryStructurePanel({ userId }: { userId: number }) {
         const newEnabled = !formValues[id]?.enabled;
         let amount = formValues[id]?.amount || '';
 
-        // Auto-fill amount for percentage_of_basic when enabling
-        if (newEnabled && !amount && component.calculation_type === 'percentage_of_basic' && basicId) {
+        if (newEnabled && !amount && basicId && data) {
             const basic = parseFloat(formValues[basicId]?.amount || '0') || 0;
-            const pct = parseFloat(component.component_default_amount ?? '0') || 0;
-            amount = ((basic * pct) / 100).toFixed(2);
+            if (component.calculation_type === 'percentage_of_basic' || component.calculation_type === 'percentage_of_ctc' || component.calculation_type === 'percentage_of_gross') {
+                amount = resolvePctAmount(component, basic, monthlyCtc, grossMonthly);
+            }
         }
 
         setFormValues((prev) => ({ ...prev, [id]: { ...prev[id], enabled: newEnabled, amount } }));
@@ -213,6 +310,32 @@ export function SalaryStructurePanel({ userId }: { userId: number }) {
     if (!isEditing) {
         return (
             <div className="space-y-4">
+                {isLocked && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-3 py-3 space-y-2">
+                        <p className="text-xs text-amber-800 dark:text-amber-300">
+                            Payroll currently uses <strong>CTC Split</strong>. Manual amounts below are synced
+                            read-only. Remove CTC to assign components manually for payroll.
+                        </p>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/30"
+                            onClick={handleRemoveCtc}
+                            disabled={clearingCtc}
+                        >
+                            <Trash2 className="mr-1.5 h-4 w-4" />
+                            {clearingCtc ? 'Removing CTC…' : 'Remove CTC & enable manual'}
+                        </Button>
+                    </div>
+                )}
+                {data.ctc_profile && !isLocked && (
+                    <p className="text-xs text-muted-foreground rounded-md bg-muted px-3 py-2">
+                        Linked to CTC ₹ {data.ctc_profile.yearly_ctc.toLocaleString('en-IN')}/yr
+                        ({fmt(data.ctc_profile.monthly_ctc)}/mo)
+                        {data.ctc_profile.template ? ` · ${data.ctc_profile.template.name}` : ''}
+                    </p>
+                )}
                 {!hasAssigned ? (
                     <p className="text-sm text-muted-foreground">No salary structure configured.</p>
                 ) : (
@@ -278,12 +401,14 @@ export function SalaryStructurePanel({ userId }: { userId: number }) {
                     </>
                 )}
 
+                {!isLocked && (
                 <div className="flex justify-end">
                     <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
                         <Edit className="mr-1.5 h-4 w-4" />
                         {hasAssigned ? 'Edit' : 'Set Up'}
                     </Button>
                 </div>
+                )}
             </div>
         );
     }
@@ -304,9 +429,9 @@ export function SalaryStructurePanel({ userId }: { userId: number }) {
                             <div className="min-w-0 flex-1">
                                 <p className="text-sm leading-none">
                                     {c.name}
-                                    {c.calculation_type === 'percentage_of_basic' && (
+                                    {pctLabel(c) && (
                                         <span className="ml-1.5 text-xs text-muted-foreground">
-                                            ({c.component_default_amount}% of Basic)
+                                            {pctLabel(c)}
                                         </span>
                                     )}
                                 </p>
@@ -344,7 +469,14 @@ export function SalaryStructurePanel({ userId }: { userId: number }) {
                                 onCheckedChange={() => handleToggle(c.salary_component_id, c)}
                             />
                             <div className="min-w-0 flex-1">
-                                <p className="text-sm leading-none">{c.name}</p>
+                                <p className="text-sm leading-none">
+                                    {c.name}
+                                    {pctLabel(c) && (
+                                        <span className="ml-1.5 text-xs text-muted-foreground">
+                                            {pctLabel(c)}
+                                        </span>
+                                    )}
+                                </p>
                                 <p className="text-xs text-muted-foreground">
                                     {c.is_pre_tax ? 'Pre-Tax' : 'Post-Tax'}
                                     {c.deduction_frequency

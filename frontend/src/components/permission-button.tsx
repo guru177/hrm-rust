@@ -22,7 +22,7 @@ interface PermissionButtonProps extends Omit<ButtonProps, 'children'> {
  * A button component that checks permissions and disables/hides based on access
  * 
  * Usage:
- *   <PermissionButton permission="create-contacts">
+ *   <PermissionButton permission="create-users">
  *     Create Contact
  *   </PermissionButton>
  * 

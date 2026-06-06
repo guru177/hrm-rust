@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
-    Award, Briefcase, Building, CalendarCheck, ClipboardList,
-    DollarSign, Folder, IndianRupee, LayoutGrid, MapPin, Users, UsersRound,
+    Award, BarChart3, Briefcase, Building, CalendarCheck, ClipboardList, Clock,
+    DollarSign, FileText, Fingerprint, Folder, IndianRupee, LayoutGrid, MapPin, Users, UsersRound,
     Wallet, Workflow, Calendar, FileCheck, Settings,
 } from 'lucide-react';
 
@@ -26,9 +26,17 @@ const mainNavItems: NavEntry[] = [
     { title: 'Centers', href: '/admin/centers', icon: MapPin, permission: 'manage-settings' },
     { title: 'Departments', href: '/admin/departments', icon: Building, permission: 'view-departments' },
     { title: 'Designations', href: '/admin/designations', icon: Award, permission: 'view-designations' },
-    { title: 'Applications', href: '/admin/job-applications', icon: Briefcase, permission: 'view-jobs' },
+    { title: 'Job Postings', href: '/admin/careers', icon: Briefcase, permission: 'view-jobs' },
+    { title: 'Applications', href: '/admin/job-applications', icon: FileCheck, permission: 'view-jobs' },
     { title: 'Attendance', href: '/admin/attendance', icon: CalendarCheck, permission: 'view-attendance' },
-    { title: 'Manage Leave Requests', href: '/admin/leave-requests/manage', icon: FileCheck, permission: 'manage-leave-requests' },
+    {
+        title: 'Shifts', icon: Clock, permission: 'view-attendance', items: [
+            { title: 'Templates & Assign', href: '/admin/shifts', icon: Clock, permission: 'view-attendance' },
+            { title: 'Shift Roster', href: '/admin/shifts/roster', icon: UsersRound, permission: 'view-attendance' },
+        ],
+    },
+    { title: 'Biometric Devices', href: '/admin/biometric', icon: Fingerprint, permission: 'view-attendance' },
+    { title: 'Leave Requests', href: '/admin/leave-requests/manage', icon: FileCheck, permission: 'manage-leave-requests' },
     { title: 'Holidays', href: '/admin/holidays', icon: Calendar, permission: 'view-holidays' },
     {
         title: 'Salaries', icon: Wallet, items: [
@@ -40,6 +48,7 @@ const mainNavItems: NavEntry[] = [
     { title: 'Workflows', href: '/admin/workflows', icon: Workflow, permission: 'view-workflows' },
     { title: 'Tasks & Activities', href: '/admin/tasks', icon: ClipboardList, permission: 'view-tasks' },
     { title: 'Projects', href: '/admin/projects', icon: Folder, permission: 'view-projects' },
+    { title: 'Reports', href: '/admin/reports', icon: BarChart3, permission: 'view-payroll' },
 ];
 
 function hasPermissionCheck(permissions: string[], slug: string | undefined): boolean {

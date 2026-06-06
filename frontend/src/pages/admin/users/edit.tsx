@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import axios from '@/lib/axios';
-import { ArrowLeft, Banknote, Briefcase, Building2, Camera, Save, Trash2, Upload, Users, Shield, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { ArrowLeft, Banknote, Briefcase, Building2, Camera, Save, Trash2, Upload, Users } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
-import { SalaryStructurePanel } from '@/components/salary-structure-panel';
+import { SalaryTabsPanel } from '@/components/salary-tabs-panel';
 import { handleApiError, handleApiResponse } from '@/lib/toast';
 
 interface Role {
@@ -75,49 +76,106 @@ interface EditUserPageProps {
     centers?: Center[];
 }
 
-export default function EditUserPage({
-    user = {} as User,
-    roles = [],
-    departments = [],
-    designations = [],
-    centers: initialCenters = [],
-}: EditUserPageProps) {
+export default function EditUserPage() {
     const navigate = useNavigate();
+    const { id } = useParams();
     const isSuperAdmin = false; // managed via Settings > Centers
 
+    const [user, setUser] = useState<User | null>(null);
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [designations, setDesignations] = useState<Designation[]>([]);
+    const [centers, setCenters] = useState<Center[]>([]);
+    const [loading, setLoading] = useState(true);
+
     const [formData, setFormData] = useState({
-        name: user.name,
-        email: user.email,
-        employee_id: user.employee_id || '',
-        phone: user.phone || '',
-        department_id: user.department_id || '',
-        designation_id: user.designation_id || '',
-        status: user.status,
-        roles: user.roles.map((r) => r.id),
-        // Employment
-        date_of_joining: user.date_of_joining || '',
-        work_location: user.work_location || '',
-        // Bank
-        bank_name: user.bank_name || '',
-        account_number: user.account_number || '',
-        ifsc_code: user.ifsc_code || '',
-        account_type: user.account_type || '',
+        name: '',
+        email: '',
+        employee_id: '',
+        phone: '',
+        department_id: '' as string | number,
+        designation_id: '' as string | number,
+        status: 'active',
+        roles: [] as number[],
+        date_of_joining: '',
+        work_location: '',
+        bank_name: '',
+        account_number: '',
+        ifsc_code: '',
+        account_type: '',
     });
     const [photoFile, setPhotoFile] = useState<File | null>(null);
-    const [photoPreview, setPhotoPreview] = useState<string | null>(
-        user.photo
-            ? user.photo.startsWith('http')
-                ? user.photo
-                : `/storage/${user.photo}`
-            : null,
-    );
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [removePhoto, setRemovePhoto] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
+    const webcamStreamRef = useRef<MediaStream | null>(null);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
-    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [webcamOpen, setWebcamOpen] = useState(false);
+    const [webcamStarting, setWebcamStarting] = useState(false);
+    const [webcamError, setWebcamError] = useState<string | null>(null);
 
-    const [centers, setCenters] = useState<Center[]>(initialCenters ?? []);
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [userRes, rolesRes, deptsRes, desigsRes, centersRes] = await Promise.all([
+                    axios.get(`/admin/users/${id}`),
+                    axios.get('/admin/roles/list'),
+                    axios.get('/admin/departments/list'),
+                    axios.get('/admin/designations/list'),
+                    axios.get('/admin/settings/centers')
+                ]);
+
+                const userData = userRes.data.data;
+                setUser(userData);
+                setRoles(rolesRes.data.data);
+                setDepartments(deptsRes.data.data);
+                setDesignations(desigsRes.data.data);
+                setCenters(centersRes.data.data);
+
+                setFormData({
+                    name: userData.name,
+                    email: userData.email,
+                    employee_id: userData.employee_id || '',
+                    phone: userData.phone || '',
+                    department_id: userData.department_id || '',
+                    designation_id: userData.designation_id || '',
+                    status: userData.status || 'active',
+                    roles: userData.roles?.map((r: any) => r.id) || [],
+                    date_of_joining: userData.date_of_joining || '',
+                    work_location: userData.work_location || '',
+                    bank_name: userData.bank_name || '',
+                    account_number: userData.account_number || '',
+                    ifsc_code: userData.ifsc_code || '',
+                    account_type: userData.account_type || '',
+                });
+
+                if (userData.photo) {
+                    setPhotoPreview(
+                        userData.photo.startsWith('http')
+                            ? userData.photo
+                            : `/storage/${userData.photo}`
+                    );
+                }
+            } catch (error) {
+                console.error('Failed to fetch data:', error);
+                handleApiError(error);
+                navigate('/admin/users');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (id) fetchData();
+    }, [id, navigate]);
+
+    useEffect(() => {
+        return () => {
+            stopWebcam();
+        };
+    }, []);
 
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -128,6 +186,7 @@ export default function EditUserPage({
             }
             setPhotoFile(file);
             setRemovePhoto(false);
+            setWebcamError(null);
             const reader = new FileReader();
             reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
             reader.readAsDataURL(file);
@@ -138,54 +197,151 @@ export default function EditUserPage({
         setPhotoFile(null);
         setPhotoPreview(null);
         setRemovePhoto(true);
+        setWebcamError(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const stopWebcam = () => {
+        if (webcamStreamRef.current) {
+            webcamStreamRef.current.getTracks().forEach((track) => track.stop());
+            webcamStreamRef.current = null;
+        }
+        if (webcamVideoRef.current) {
+            webcamVideoRef.current.srcObject = null;
+        }
+    };
+
+    const startWebcam = async () => {
+        setWebcamStarting(true);
+        setWebcamError(null);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user' },
+                audio: false,
+            });
+            webcamStreamRef.current = stream;
+            setWebcamOpen(true);
+            requestAnimationFrame(() => {
+                if (webcamVideoRef.current) {
+                    webcamVideoRef.current.srcObject = stream;
+                    void webcamVideoRef.current.play();
+                }
+            });
+        } catch {
+            setWebcamError('Unable to access webcam. Please allow camera permission and retry.');
+            setWebcamOpen(false);
+        } finally {
+            setWebcamStarting(false);
+        }
+    };
+
+    const closeWebcam = () => {
+        stopWebcam();
+        setWebcamOpen(false);
+    };
+
+    const captureFromWebcam = async () => {
+        const video = webcamVideoRef.current;
+        if (!video || !video.videoWidth || !video.videoHeight) {
+            setWebcamError('Camera is not ready yet. Please wait and try again.');
+            return;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            setWebcamError('Failed to capture image from webcam.');
+            return;
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+        if (!blob) {
+            setWebcamError('Unable to create captured image.');
+            return;
+        }
+        if (blob.size > 2 * 1024 * 1024) {
+            setWebcamError('Captured photo is larger than 2MB. Move closer and try again.');
+            return;
+        }
+
+        const capturedFile = new File([blob], `webcam-user-${user?.id ?? 'photo'}.jpg`, {
+            type: 'image/jpeg',
+        });
+        setPhotoFile(capturedFile);
+        setRemovePhoto(false);
+        setPhotoPreview(URL.createObjectURL(blob));
+        setWebcamError(null);
+        closeWebcam();
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
+        if (!user) return;
+        setSaving(true);
         setErrors({});
         setSaved(false);
 
         try {
-            // Update basic user info using FormData for file upload support
-            const payload = new FormData();
-            payload.append('_method', 'PUT');
-            payload.append('name', formData.name);
-            payload.append('email', formData.email);
-            payload.append('employee_id', formData.employee_id as string);
-            payload.append('phone', formData.phone as string);
-            if (formData.department_id) payload.append('department_id', String(formData.department_id));
-            if (formData.designation_id) payload.append('designation_id', String(formData.designation_id));
-            payload.append('status', formData.status);
-            // Employment details
-            if (formData.date_of_joining) payload.append('date_of_joining', formData.date_of_joining as string);
-            if (formData.work_location)   payload.append('work_location', formData.work_location as string);
-            // Bank details
-            if (formData.bank_name)      payload.append('bank_name', formData.bank_name as string);
-            if (formData.account_number) payload.append('account_number', formData.account_number as string);
-            if (formData.ifsc_code)      payload.append('ifsc_code', formData.ifsc_code as string);
-            if (formData.account_type)   payload.append('account_type', formData.account_type as string);
-            if (photoFile) payload.append('photo', photoFile);
-            if (removePhoto) payload.append('remove_photo', '1');
+            let response;
 
-            await axios.post(`/admin/users/${user.id}`, payload, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            if (photoFile || removePhoto) {
+                const fd = new FormData();
+                fd.append('name', formData.name);
+                fd.append('email', formData.email);
+                fd.append('employee_id', formData.employee_id);
+                fd.append('phone', formData.phone);
+                fd.append('status', formData.status);
+                fd.append('department_id', formData.department_id || '');
+                fd.append('designation_id', formData.designation_id || '');
+                fd.append('date_of_joining', formData.date_of_joining);
+                fd.append('work_location', formData.work_location);
+                fd.append('bank_name', formData.bank_name);
+                fd.append('account_number', formData.account_number);
+                fd.append('ifsc_code', formData.ifsc_code);
+                fd.append('account_type', formData.account_type);
+                fd.append('roles', JSON.stringify(formData.roles));
+                if (photoFile) fd.append('photo', photoFile);
+                if (removePhoto) fd.append('remove_photo', '1');
 
-            // Update roles separately
-            await axios.put(`/admin/users/${user.id}/roles`, {
-                roles: formData.roles,
-            });
+                response = await axios.post(`/admin/users/${user.id}`, fd);
+            } else {
+                const payload = {
+                    name: formData.name,
+                    email: formData.email,
+                    employee_id: formData.employee_id,
+                    phone: formData.phone,
+                    status: formData.status,
+                    department_id: formData.department_id ? Number(formData.department_id) : null,
+                    designation_id: formData.designation_id ? Number(formData.designation_id) : null,
+                    date_of_joining: formData.date_of_joining,
+                    work_location: formData.work_location,
+                    bank_name: formData.bank_name,
+                    account_number: formData.account_number,
+                    ifsc_code: formData.ifsc_code,
+                    account_type: formData.account_type,
+                    roles: formData.roles,
+                };
+                response = await axios.put(`/admin/users/${user.id}`, payload);
+            }
 
-            handleApiResponse({
-                data: {
-                    type: 'success',
-                    message: 'User updated successfully',
-                },
-            } as any);
+            handleApiResponse(response);
 
-            // Show saved state
+            if (response.data?.data?.photo) {
+                const photo = response.data.data.photo as string;
+                setPhotoPreview(
+                    photo.startsWith('http') ? photo : `/storage/${photo}`,
+                );
+                setPhotoFile(null);
+                setRemovePhoto(false);
+            } else if (removePhoto) {
+                setPhotoPreview(null);
+                setPhotoFile(null);
+                setRemovePhoto(false);
+            }
+
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
         } catch (error: any) {
@@ -194,7 +350,7 @@ export default function EditUserPage({
             }
             handleApiError(error);
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     };
 
@@ -207,9 +363,31 @@ export default function EditUserPage({
         }));
     };
 
+    if (loading) {
+        return (
+            <AppLayout breadcrumbs={[{ label: 'Users', href: '/admin/users' }, { label: 'Loading...' }]}>
+                <div className="flex h-[400px] items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    if (!user) {
+        return (
+            <AppLayout breadcrumbs={[{ label: 'Users', href: '/admin/users' }, { label: 'Not Found' }]}>
+                <div className="flex h-[400px] flex-col items-center justify-center gap-4">
+                    <h2 className="text-xl font-semibold">User not found</h2>
+                    <Button onClick={() => navigate('/admin/users')}>Back to Users</Button>
+                </div>
+            </AppLayout>
+        );
+    }
+
     const breadcrumbs = [
         { label: 'Users', href: '/admin/users' },
-        { label: user.name, href: '#' },
+        { label: user.name, href: `/admin/users/${user.id}` },
+        { label: 'Edit', href: '#' },
     ];
 
     return (
@@ -294,6 +472,16 @@ export default function EditUserPage({
                                             <Upload className="mr-2 h-4 w-4" />
                                             {photoPreview ? 'Change Photo' : 'Upload Photo'}
                                         </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={startWebcam}
+                                            disabled={webcamStarting}
+                                        >
+                                            <Camera className="mr-2 h-4 w-4" />
+                                            {webcamStarting ? 'Opening...' : 'Open Webcam'}
+                                        </Button>
                                         {photoPreview && (
                                             <Button
                                                 type="button"
@@ -310,11 +498,36 @@ export default function EditUserPage({
                                     <p className="text-xs text-muted-foreground">
                                         Accepted formats: JPG, PNG, GIF, WebP. Max size: 2MB.
                                     </p>
+                                    {webcamError && (
+                                        <p className="text-sm text-destructive">{webcamError}</p>
+                                    )}
                                     {errors.photo && (
                                         <p className="text-sm text-destructive">{errors.photo[0]}</p>
                                     )}
                                 </div>
                             </div>
+                            {webcamOpen && (
+                                <div className="mt-4 rounded-lg border p-3 space-y-3">
+                                    <p className="text-sm font-medium">Webcam Capture</p>
+                                    <div className="max-w-md overflow-hidden rounded-md border bg-muted">
+                                        <video
+                                            ref={webcamVideoRef}
+                                            className="w-full h-auto"
+                                            autoPlay
+                                            muted
+                                            playsInline
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button type="button" size="sm" onClick={captureFromWebcam}>
+                                            Capture Photo
+                                        </Button>
+                                        <Button type="button" size="sm" variant="outline" onClick={closeWebcam}>
+                                            Cancel Webcam
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -666,10 +879,10 @@ export default function EditUserPage({
                                 <Banknote className="h-5 w-5" />
                                 Salary Structure
                             </CardTitle>
-                            <CardDescription>Monthly compensation breakdown based on salary components</CardDescription>
+                            <CardDescription>Monthly compensation from CTC split or manual components</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <SalaryStructurePanel userId={user.id} />
+                            <SalaryTabsPanel userId={user.id} />
                         </CardContent>
                     </Card>
 
@@ -687,12 +900,12 @@ export default function EditUserPage({
                                 type="button"
                                 variant="outline"
                                 onClick={() => navigate('/admin/users')}
-                                disabled={loading}
+                                disabled={saving}
                             >
                                 Back to Users
                             </Button>
-                            <Button type="submit" disabled={loading}>
-                                {loading ? (
+                            <Button type="submit" disabled={saving}>
+                                {saving ? (
                                     <>Saving...</>
                                 ) : saved ? (
                                     <>

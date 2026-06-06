@@ -26,8 +26,8 @@ pub async fn store(pool: web::Data<DbPool>, req: HttpRequest, body: web::Json<Cr
     let conn = match pool.get() { Ok(c) => c, Err(_) => return HttpResponse::InternalServerError().json(ApiError::new("Database error")) };
     let slug = body.name.to_lowercase().replace(' ', "-");
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    match conn.execute("INSERT INTO designations (name, slug, description, department_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        rusqlite::params![body.name, slug, body.description, body.department_id, &now, &now]) {
+    match conn.execute("INSERT INTO designations (name, slug, description, level, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![body.name, slug, body.description, body.level, &now, &now]) {
         Ok(_) => HttpResponse::Created().json(ApiResponse::success(serde_json::json!({"id": conn.last_insert_rowid()}))),
         Err(e) => HttpResponse::BadRequest().json(ApiError::new(&format!("Failed: {}", e))),
     }
@@ -38,8 +38,8 @@ pub async fn update(pool: web::Data<DbPool>, req: HttpRequest, path: web::Path<i
     let conn = match pool.get() { Ok(c) => c, Err(_) => return HttpResponse::InternalServerError().json(ApiError::new("Database error")) };
     let slug = body.name.to_lowercase().replace(' ', "-");
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    match conn.execute("UPDATE designations SET name=?1, slug=?2, description=?3, department_id=?4, updated_at=?5 WHERE id=?6",
-        rusqlite::params![body.name, slug, body.description, body.department_id, &now, path.into_inner()]) {
+    match conn.execute("UPDATE designations SET name=?1, slug=?2, description=?3, level=?4, updated_at=?5 WHERE id=?6",
+        rusqlite::params![body.name, slug, body.description, body.level, &now, path.into_inner()]) {
         Ok(_) => HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({"message": "Updated"}))),
         Err(e) => HttpResponse::BadRequest().json(ApiError::new(&format!("Failed: {}", e))),
     }

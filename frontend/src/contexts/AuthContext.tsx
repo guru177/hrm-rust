@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { apiGet, apiPost, setToken, clearToken, isAuthenticated } from '@/lib/api';
+import { apiGet, apiPost, setToken, setRefreshToken, getRefreshToken, clearToken, isAuthenticated } from '@/lib/api';
 
 interface User {
     id: number;
@@ -24,7 +24,7 @@ interface AuthContextType {
     permissions: string[];
     settings: Record<string, string>;
     loading: boolean;
-    login: (email: string, password: string) => Promise<void>;
+    login: (email: string, password: string) => Promise<string[]>;
     logout: () => void;
     hasPermission: (slug: string) => boolean;
     refreshUser: () => Promise<void>;
@@ -72,18 +72,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    async function login(email: string, password: string) {
-        const res = await apiPost<{ token: string; user: User; permissions: string[]; settings: Record<string, string> }>(
+    async function login(email: string, password: string): Promise<string[]> {
+        const res = await apiPost<{ token: string; refresh_token?: string; user: User; permissions: string[]; settings: Record<string, string> }>(
             '/auth/login',
             { email, password },
         );
         setToken(res.data.token);
+        if (res.data.refresh_token) {
+            setRefreshToken(res.data.refresh_token);
+        }
         setUser(res.data.user);
         setPermissions(res.data.permissions);
         setSettings(res.data.settings || {});
+        return res.data.permissions;
     }
 
-    function logout() {
+    async function logout() {
+        const refresh = getRefreshToken();
+        try {
+            await apiPost('/auth/logout', { refresh_token: refresh });
+        } catch {
+            // proceed with client logout even if server revoke fails
+        }
         clearToken();
         setUser(null);
         setPermissions([]);

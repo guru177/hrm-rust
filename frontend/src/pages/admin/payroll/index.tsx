@@ -39,8 +39,22 @@ interface SalaryComponent {
 interface SalaryStructure {
     components: SalaryComponent[];
     gross_salary: number;
+    gross_after_lop?: number;
     total_deductions: number;
     lop_deduction: number;
+    lop_breakdown?: {
+        days: number;
+        lines?: { component_id?: number; name: string; amount: number }[];
+        basic: number;
+        hra: number;
+        conveyance: number;
+        special: number;
+        total: number;
+    };
+    pf_deduction?: number;
+    esi_deduction?: number;
+    prof_tax?: number;
+    advance_deduction?: number;
     net_salary: number;
 }
 
@@ -56,6 +70,10 @@ interface Employee {
     leave_days: number;
     working_days: number;
     paid_holidays: number;
+    lop_days?: number;
+    absent_days?: number;
+    shift_penalty?: number;
+    penalty_days?: number;
     has_salary_structure: boolean;
     salary_structure?: SalaryStructure;
     gross_salary?: number;
@@ -115,12 +133,11 @@ function SalaryPopup({
         setAdjs(adjs.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
 
     const ss = employee.salary_structure;
-    const lop = ss?.lop_deduction ?? 0;
     const totalAdditions = adjs.filter(a => a.type === 'addition').reduce((s, a) => s + (a.amount || 0), 0);
     const totalDeductions = adjs.filter(a => a.type === 'deduction').reduce((s, a) => s + (a.amount || 0), 0);
-    // Compute net from gross so the capped-at-zero base doesn't hide real deductions
+    // total_deductions from backend already includes LOP and shift penalties
     const adjustedNet = ss
-        ? Math.max(0, (ss.gross_salary || 0) + totalAdditions - lop - (ss.total_deductions || 0) - totalDeductions)
+        ? Math.max(0, (ss.gross_salary || 0) + totalAdditions - (ss.total_deductions || 0) - totalDeductions)
         : null;
 
     return (
@@ -164,16 +181,22 @@ function SalaryPopup({
                                         <span className="font-medium">{fmt(c.amount)}</span>
                                     </div>
                                 ))}
-                                {lop > 0 && (
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-muted-foreground">LOP ({employee.working_days - employee.present_days - employee.leave_days} days)</span>
-                                        <span className="font-medium text-red-600">-{fmt(lop)}</span>
-                                    </div>
-                                )}
                                 <div className="border-t pt-2 flex justify-between text-sm font-semibold">
                                     <span className="text-muted-foreground">Attendance</span>
                                     <span>{employee.present_days}/{employee.working_days} days</span>
                                 </div>
+                                {(employee.lop_days ?? employee.absent_days ?? 0) > 0 && (
+                                    <div className="flex justify-between text-xs text-red-600">
+                                        <span>LOP days</span>
+                                        <span>{employee.lop_days ?? employee.absent_days} days</span>
+                                    </div>
+                                )}
+                                {(employee.shift_penalty ?? 0) > 0 && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Late/Early Penalty</span>
+                                        <span>{fmt(employee.shift_penalty)}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -184,7 +207,6 @@ function SalaryPopup({
                                 <div className="text-xl font-bold text-primary">{fmt(adjustedNet)}</div>
                                 <div className="text-xs text-muted-foreground">
                                     Gross: {fmt(ss.gross_salary)}
-                                    {lop > 0 && <span className="text-red-600"> −LOP {fmt(lop)}</span>}
                                     {ss.total_deductions > 0 && <span className="text-red-600"> −Ded {fmt(ss.total_deductions)}</span>}
                                     {totalAdditions > 0 && <span className="text-green-600"> +{fmt(totalAdditions)}</span>}
                                     {totalDeductions > 0 && <span className="text-red-600"> −{fmt(totalDeductions)}</span>}
@@ -316,7 +338,7 @@ function PreviewPopup({
             const response = await axios.post('/admin/payroll/generate', {
                 month,
                 year,
-                payslip_ids: previews.map(p => p.id),
+                payslip_ids: previews.filter(p => !p.skipped && p.id).map(p => p.id),
                 common_adjustments: validAdjs,
             });
             handleApiResponse(response);
@@ -446,6 +468,8 @@ function PreviewPopup({
                                 <th className="text-left p-3 font-semibold">Employee</th>
                                 <th className="text-right p-3 font-semibold">Working Days</th>
                                 <th className="text-right p-3 font-semibold">Present</th>
+                                <th className="text-right p-3 font-semibold">Absent</th>
+                                <th className="text-right p-3 font-semibold">Penalty</th>
                                 <th className="text-right p-3 font-semibold">Gross</th>
                                 <th className="text-right p-3 font-semibold">Deductions</th>
                                 <th className="text-right p-3 font-semibold text-primary">Net Salary</th>
@@ -461,6 +485,8 @@ function PreviewPopup({
                                         <td className="p-3 font-medium">{p.user_name || `Employee #${p.user_id}`}</td>
                                         <td className="p-3 text-right text-muted-foreground">{p.working_days}</td>
                                         <td className="p-3 text-right text-muted-foreground">{p.present_days}</td>
+                                        <td className="p-3 text-right text-muted-foreground">{p.absent_days ?? 0}</td>
+                                        <td className="p-3 text-right text-muted-foreground">{fmt(p.shift_penalty ?? 0)}</td>
                                         <td className="p-3 text-right">{fmt(parseFloat(p.gross_salary))}</td>
                                         <td className="p-3 text-right text-red-600">{fmt(parseFloat(p.total_deductions))}</td>
                                         <td className="p-3 text-right font-bold text-primary">
@@ -477,7 +503,7 @@ function PreviewPopup({
                         </tbody>
                         <tfoot className="bg-muted/50 border-t">
                             <tr>
-                                <td className="p-3 font-bold" colSpan={5}>Total Payroll</td>
+                                <td className="p-3 font-bold" colSpan={7}>Total Payroll</td>
                                 <td className="p-3 text-right font-bold text-xl text-primary">{fmt(total)}</td>
                             </tr>
                         </tfoot>
@@ -533,7 +559,7 @@ function EmployeeListPanel({
         // Compute from gross so a zero-capped base net doesn't absorb adjustment amounts
         const ss = emp.salary_structure;
         const net = ss != null
-            ? Math.max(0, (ss.gross_salary || 0) + additions - (ss.lop_deduction || 0) - (ss.total_deductions || 0) - deductions)
+            ? Math.max(0, (ss.gross_salary || 0) + additions - (ss.total_deductions || 0) - deductions)
             : null;
 
         return (
@@ -552,7 +578,14 @@ function EmployeeListPanel({
                     </div>
                     <div className="min-w-0">
                         <div className="font-medium text-sm truncate">{emp.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{emp.department_name || 'No Dept'}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                            {emp.department_name || 'No Dept'}
+                            {emp.has_salary_structure && (
+                                <> · {emp.present_days}/{emp.working_days}d
+                                {(emp.absent_days ?? 0) > 0 && <> · {emp.absent_days} absent</>}
+                                </>
+                            )}
+                        </div>
                     </div>
                 </button>
                 <div className="text-right shrink-0">

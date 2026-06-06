@@ -18,6 +18,7 @@ const sidebarNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
     { title: 'General Settings', href: '/admin/settings/app', icon: null },
+    { title: 'Leave Types', href: '/admin/settings/leave-types', icon: null },
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {

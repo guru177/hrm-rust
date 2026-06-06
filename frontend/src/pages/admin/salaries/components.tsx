@@ -69,7 +69,7 @@ interface SalaryComponent {
     // earnings
     earning_type: string | null;
     name_in_payslip: string | null;
-    calculation_type: 'flat_amount' | 'percentage_of_basic' | null;
+    calculation_type: 'flat_amount' | 'percentage_of_basic' | 'percentage_of_ctc' | 'percentage_of_gross' | null;
     amount: string | null;
     // deductions
     deduction_type: string | null;
@@ -88,7 +88,7 @@ interface FormState {
     // earnings
     earning_type: string;
     name_in_payslip: string;
-    calculation_type: 'flat_amount' | 'percentage_of_basic';
+    calculation_type: 'flat_amount' | 'percentage_of_basic' | 'percentage_of_ctc' | 'percentage_of_gross';
     amount: string;
     // deductions
     deduction_type: string;
@@ -124,6 +124,105 @@ const formatInrAmount = (value: string | number | null | undefined) => {
         maximumFractionDigits: 0,
     }).format(Number.isFinite(amount) ? amount : 0);
 };
+
+const calcTypeLabel = (calc: string | null | undefined) => {
+    if (calc === 'percentage_of_basic') return 'Percentage of Basic';
+    if (calc === 'percentage_of_ctc') return 'Percentage of CTC';
+    if (calc === 'percentage_of_gross') return 'Percentage of Gross';
+    if (calc === 'flat_amount') return 'Flat Amount';
+    return '-';
+};
+
+const formatComponentValue = (
+    calc: string | null | undefined,
+    amount: string | null | undefined,
+) => {
+    if (calc === 'percentage_of_basic' || calc === 'percentage_of_ctc' || calc === 'percentage_of_gross') return `${amount ?? 0}%`;
+    return formatInrAmount(amount);
+};
+
+function CalculationTypeFields({
+    calculationType,
+    amount,
+    onCalculationTypeChange,
+    onAmountChange,
+    showCtcOption = true,
+    showGrossOption = false,
+}: {
+    calculationType: 'flat_amount' | 'percentage_of_basic' | 'percentage_of_ctc' | 'percentage_of_gross';
+    amount: string;
+    onCalculationTypeChange: (v: 'flat_amount' | 'percentage_of_basic' | 'percentage_of_ctc' | 'percentage_of_gross') => void;
+    onAmountChange: (v: string) => void;
+    showCtcOption?: boolean;
+    showGrossOption?: boolean;
+}) {
+    return (
+        <>
+            <div className="space-y-1.5">
+                <Label>Calculation Type *</Label>
+                <div className="flex flex-col gap-2 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="radio"
+                            checked={calculationType === 'flat_amount'}
+                            onChange={() => onCalculationTypeChange('flat_amount')}
+                            className="accent-primary"
+                        />
+                        <span className="text-sm">Flat Amount</span>
+                    </label>
+                    {showCtcOption && (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                checked={calculationType === 'percentage_of_ctc'}
+                                onChange={() => onCalculationTypeChange('percentage_of_ctc')}
+                                className="accent-primary"
+                            />
+                            <span className="text-sm">Percentage of CTC</span>
+                        </label>
+                    )}
+                    {showGrossOption && (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                checked={calculationType === 'percentage_of_gross'}
+                                onChange={() => onCalculationTypeChange('percentage_of_gross')}
+                                className="accent-primary"
+                            />
+                            <span className="text-sm">Percentage of Gross</span>
+                        </label>
+                    )}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="radio"
+                            checked={calculationType === 'percentage_of_basic'}
+                            onChange={() => onCalculationTypeChange('percentage_of_basic')}
+                            className="accent-primary"
+                        />
+                        <span className="text-sm">Percentage of Basic</span>
+                    </label>
+                </div>
+            </div>
+            <div className="space-y-1.5">
+                <Label>
+                    {calculationType === 'flat_amount' ? 'Enter Amount (INR)' : 'Percentage (%)'}
+                </Label>
+                <div className="relative">
+                    {calculationType === 'flat_amount' && (
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">INR</span>
+                    )}
+                    <Input
+                        type="number"
+                        min={0}
+                        value={amount}
+                        onChange={(e) => onAmountChange(e.target.value)}
+                        className={calculationType === 'flat_amount' ? 'pl-7' : ''}
+                    />
+                </div>
+            </div>
+        </>
+    );
+}
 
 export default function SalaryComponents() {
     const [activeTab, setActiveTab] = useState<ComponentType>('earning');
@@ -177,13 +276,20 @@ export default function SalaryComponents() {
             is_active: c.is_active,
             earning_type: c.earning_type ?? '',
             name_in_payslip: c.name_in_payslip ?? '',
-            calculation_type: c.calculation_type ?? 'flat_amount',
-            amount: c.amount ?? '0',
+            calculation_type:
+                c.calculation_type === 'percentage_of_basic'
+                    ? 'percentage_of_basic'
+                    : c.calculation_type === 'percentage_of_ctc'
+                      ? 'percentage_of_ctc'
+                      : c.calculation_type === 'percentage_of_gross'
+                        ? 'percentage_of_gross'
+                        : 'flat_amount',
+            amount: c.amount ?? c.max_amount_per_month ?? '0',
             deduction_type: c.deduction_type ?? '',
             deduction_frequency: c.deduction_frequency ?? 'recurring',
             is_pre_tax: c.is_pre_tax,
             reimbursement_type: c.reimbursement_type ?? '',
-            max_amount_per_month: c.max_amount_per_month ?? '0',
+            max_amount_per_month: c.max_amount_per_month ?? c.amount ?? '0',
         });
         setShowModal(true);
     };
@@ -191,9 +297,16 @@ export default function SalaryComponents() {
     const handleSave = async () => {
         setSaving(true);
         try {
+            const payload = {
+                ...form,
+                max_amount_per_month:
+                    form.type === 'reimbursement' && form.calculation_type === 'flat_amount'
+                        ? form.amount
+                        : form.max_amount_per_month,
+            };
             const response = editing
-                ? await axios.put(`/admin/salaries/components/${editing.id}`, form)
-                : await axios.post('/admin/salaries/components', form);
+                ? await axios.put(`/admin/salaries/components/${editing.id}`, payload)
+                : await axios.post('/admin/salaries/components', payload);
             handleApiResponse(response);
             setShowModal(false);
             fetchComponents();
@@ -241,14 +354,8 @@ export default function SalaryComponents() {
                         </TableCell>
                         <TableCell>{c.earning_type ?? '-'}</TableCell>
                         <TableCell>{c.name_in_payslip ?? '-'}</TableCell>
-                        <TableCell>
-                            {c.calculation_type === 'flat_amount' ? 'Flat Amount' : c.calculation_type === 'percentage_of_basic' ? 'Percentage of Basic' : '-'}
-                        </TableCell>
-                        <TableCell>
-                            {c.calculation_type === 'percentage_of_basic'
-                                ? `${c.amount ?? 0}%`
-                                : formatInrAmount(c.amount)}
-                        </TableCell>
+                        <TableCell>{calcTypeLabel(c.calculation_type)}</TableCell>
+                        <TableCell>{formatComponentValue(c.calculation_type, c.amount)}</TableCell>
                         <TableCell>
                             <Badge variant={c.is_active ? 'default' : 'secondary'}>
                                 {c.is_active ? 'Active' : 'Inactive'}
@@ -271,14 +378,14 @@ export default function SalaryComponents() {
         const DeductionGroup = ({ label, items }: { label: string; items: SalaryComponent[] }) => (
             <>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableCell colSpan={5} className="py-2 font-semibold text-sm">
+                    <TableCell colSpan={7} className="py-2 font-semibold text-sm">
                         {label}
                         <Info className="inline h-3.5 w-3.5 ml-1.5 text-muted-foreground" />
                     </TableCell>
                 </TableRow>
                 {items.length === 0 ? (
                     <TableRow>
-                        <TableCell colSpan={5} className="text-sm text-muted-foreground italic py-3 pl-6">
+                        <TableCell colSpan={7} className="text-sm text-muted-foreground italic py-3 pl-6">
                             No components
                         </TableCell>
                     </TableRow>
@@ -292,6 +399,8 @@ export default function SalaryComponents() {
                             <TableCell>
                                 {c.deduction_frequency === 'recurring' ? 'Recurring' : c.deduction_frequency === 'one_time' ? 'One Time' : '-'}
                             </TableCell>
+                            <TableCell>{calcTypeLabel(c.calculation_type)}</TableCell>
+                            <TableCell>{formatComponentValue(c.calculation_type, c.amount)}</TableCell>
                             <TableCell>
                                 <Badge variant={c.is_active ? 'default' : 'secondary'}>
                                     {c.is_active ? 'Active' : 'Inactive'}
@@ -313,6 +422,8 @@ export default function SalaryComponents() {
                         <TableHead>NAME</TableHead>
                         <TableHead>DEDUCTION TYPE</TableHead>
                         <TableHead>DEDUCTION FREQUENCY</TableHead>
+                        <TableHead>CALCULATION TYPE</TableHead>
+                        <TableHead>AMOUNT</TableHead>
                         <TableHead>STATUS</TableHead>
                         <TableHead className="text-right">ACTIONS</TableHead>
                     </TableRow>
@@ -340,7 +451,8 @@ export default function SalaryComponents() {
                     <TableRow>
                         <TableHead>NAME</TableHead>
                         <TableHead>REIMBURSEMENT TYPE</TableHead>
-                        <TableHead>MAXIMUM REIMBURSEMENT</TableHead>
+                        <TableHead>CALCULATION TYPE</TableHead>
+                        <TableHead>VALUE</TableHead>
                         <TableHead>STATUS</TableHead>
                         <TableHead className="text-right">ACTIONS</TableHead>
                     </TableRow>
@@ -352,8 +464,13 @@ export default function SalaryComponents() {
                                 {c.name}
                             </TableCell>
                             <TableCell>{c.reimbursement_type ?? '-'}</TableCell>
+                            <TableCell>{calcTypeLabel(c.calculation_type)}</TableCell>
                             <TableCell>
-                                {formatInrAmount(c.max_amount_per_month)} per month
+                                {formatComponentValue(
+                                    c.calculation_type,
+                                    c.amount ?? c.max_amount_per_month,
+                                )}
+                                {c.calculation_type === 'flat_amount' ? ' per month' : ''}
                             </TableCell>
                             <TableCell>
                                 <Badge variant={c.is_active ? 'default' : 'secondary'}>
@@ -550,46 +667,14 @@ export default function SalaryComponents() {
                                         placeholder="e.g. Conveyance"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label>Calculation Type *</Label>
-                                    <div className="flex flex-col gap-2 pt-1">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                checked={form.calculation_type === 'flat_amount'}
-                                                onChange={() => setForm({ ...form, calculation_type: 'flat_amount' })}
-                                                className="accent-primary"
-                                            />
-                                            <span className="text-sm">Flat Amount</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                checked={form.calculation_type === 'percentage_of_basic'}
-                                                onChange={() => setForm({ ...form, calculation_type: 'percentage_of_basic' })}
-                                                className="accent-primary"
-                                            />
-                                            <span className="text-sm">Percentage of Basic</span>
-                                        </label>
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label>
-                                        {form.calculation_type === 'percentage_of_basic' ? 'Percentage (%)' : 'Enter Amount'}
-                                    </Label>
-                                    <div className="relative">
-                                        {form.calculation_type === 'flat_amount' && (
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">INR</span>
-                                        )}
-                                        <Input
-                                            type="number"
-                                            min={0}
-                                            value={form.amount}
-                                            onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                                            className={form.calculation_type === 'flat_amount' ? 'pl-7' : ''}
-                                        />
-                                    </div>
-                                </div>
+                                <CalculationTypeFields
+                                    calculationType={form.calculation_type}
+                                    amount={form.amount}
+                                    onCalculationTypeChange={(v) => setForm({ ...form, calculation_type: v })}
+                                    onAmountChange={(v) => setForm({ ...form, amount: v })}
+                                    showCtcOption={form.type === 'earning'}
+                                    showGrossOption={form.type === 'earning'}
+                                />
                             </>
                         )}
 
@@ -642,6 +727,13 @@ export default function SalaryComponents() {
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                <CalculationTypeFields
+                                    calculationType={form.calculation_type}
+                                    amount={form.amount}
+                                    onCalculationTypeChange={(v) => setForm({ ...form, calculation_type: v })}
+                                    onAmountChange={(v) => setForm({ ...form, amount: v })}
+                                    showCtcOption={form.type === 'earning'}
+                                />
                             </>
                         )}
 
@@ -664,19 +756,12 @@ export default function SalaryComponents() {
                                         placeholder="e.g. Fuel Reimbursement"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label>Maximum Reimbursement per Month (INR)</Label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">INR</span>
-                                        <Input
-                                            type="number"
-                                            min={0}
-                                            className="pl-7"
-                                            value={form.max_amount_per_month}
-                                            onChange={(e) => setForm({ ...form, max_amount_per_month: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
+                                <CalculationTypeFields
+                                    calculationType={form.calculation_type}
+                                    amount={form.amount}
+                                    onCalculationTypeChange={(v) => setForm({ ...form, calculation_type: v })}
+                                    onAmountChange={(v) => setForm({ ...form, amount: v, max_amount_per_month: v })}
+                                />
                             </>
                         )}
 

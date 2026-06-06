@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
+import { defaultAdminRoute } from '@/lib/default-route';
 
 export default function Login() {
     const { login } = useAuth();
     const navigate = useNavigate();
-    const [email, setEmail] = useState('admin@mashuptech.in');
-    const [password, setPassword] = useState('password');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState('');
 
@@ -22,8 +23,9 @@ export default function Login() {
         setError('');
 
         try {
-            await login(email, password);
-            navigate('/admin/dashboard', { replace: true });
+            const perms = await login(email, password);
+            const has = (slug: string) => perms.includes('*') || perms.includes(slug);
+            navigate(defaultAdminRoute(has), { replace: true });
         } catch (err: any) {
             setError(err.message || 'Invalid credentials');
         } finally {

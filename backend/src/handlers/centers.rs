@@ -40,9 +40,38 @@ pub struct CreateCenterRequest {
     pub name: String,
     pub code: Option<String>,
     pub address: Option<String>,
+    pub address_line1: Option<String>,
+    pub address_line2: Option<String>,
+    pub place: Option<String>,
     pub city: Option<String>,
     pub state: Option<String>,
     pub country: Option<String>,
+    pub pincode: Option<String>,
+}
+
+impl CreateCenterRequest {
+    fn resolved_address(&self) -> Option<String> {
+        if let Some(ref a) = self.address {
+            if !a.is_empty() {
+                return Some(a.clone());
+            }
+        }
+        let parts: Vec<String> = [
+            self.address_line1.clone(),
+            self.address_line2.clone(),
+            self.place.clone(),
+            self.pincode.clone(),
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|s| !s.is_empty())
+        .collect();
+        if parts.is_empty() {
+            None
+        } else {
+            Some(parts.join(", "))
+        }
+    }
 }
 
 pub async fn index(pool: web::Data<DbPool>, req: HttpRequest) -> HttpResponse {
@@ -62,7 +91,7 @@ pub async fn store(pool: web::Data<DbPool>, req: HttpRequest, body: web::Json<Cr
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     match conn.execute(
         "INSERT INTO centers (name,code,address,city,state,country,is_active,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?6,1,?7,?8)",
-        rusqlite::params![body.name, body.code, body.address, body.city, body.state, body.country, &now, &now]
+        rusqlite::params![body.name, body.code, body.resolved_address(), body.city, body.state, body.country, &now, &now]
     ) {
         Ok(_)=>HttpResponse::Created().json(ApiResponse::success(serde_json::json!({"id": conn.last_insert_rowid()}))),
         Err(e)=>HttpResponse::BadRequest().json(ApiError::new(&format!("{}",e)))
@@ -75,7 +104,7 @@ pub async fn update(pool: web::Data<DbPool>, req: HttpRequest, path: web::Path<i
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let _ = conn.execute(
         "UPDATE centers SET name=?1,code=?2,address=?3,city=?4,state=?5,country=?6,updated_at=?7 WHERE id=?8",
-        rusqlite::params![body.name, body.code, body.address, body.city, body.state, body.country, &now, path.into_inner()]
+        rusqlite::params![body.name, body.code, body.resolved_address(), body.city, body.state, body.country, &now, path.into_inner()]
     );
     HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({"message": "Updated"})))
 }
