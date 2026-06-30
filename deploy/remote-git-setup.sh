@@ -37,7 +37,13 @@ if [ -d "${APP_DIR}" ] && [ -n "$(ls -A "${APP_DIR}" 2>/dev/null || true)" ]; th
 fi
 
 echo "==> Clone ${REPO_URL} (${BRANCH})"
-git clone --branch "${BRANCH}" --depth 1 "${REPO_URL}" "${APP_DIR}"
+CLONE_TMP=$(mktemp -d)
+git clone --branch "${BRANCH}" --depth 1 "${REPO_URL}" "${CLONE_TMP}/hrm"
+sudo mkdir -p "${APP_DIR}"
+sudo rm -rf "${APP_DIR}"
+sudo mv "${CLONE_TMP}/hrm" "${APP_DIR}"
+sudo chown -R ubuntu:ubuntu "${APP_DIR}"
+rm -rf "${CLONE_TMP}"
 
 if [ -n "${ENV_BACKUP}" ] && [ -f "${ENV_BACKUP}" ]; then
   cp "${ENV_BACKUP}" "${APP_DIR}/deploy/.env"

@@ -136,6 +136,7 @@ if [ ! -d /opt/hrm/.git ]; then
 fi
 cp /tmp/hrm-deploy.env /opt/hrm/deploy/.env
 bash /opt/hrm/deploy/remote-git-deploy.sh 2>&1 | tee /tmp/hrm-deploy.log
+if ! grep -q 'Deploy finished' /tmp/hrm-deploy.log; then exit 1; fi
 "@
     $gitRemote = ($gitRemote -replace "`r`n", "`n") -replace "`r", ""
     $gitRemote | & ssh @ssh "${SshUser}@${ServerIp}" "bash -s"
