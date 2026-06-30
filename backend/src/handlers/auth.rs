@@ -102,13 +102,21 @@ fn login_with_pool(
             Err(_) => return BlockJson::error(401, "Invalid credentials"),
         }
     } else {
-        let candidates = conn.query_map(
+        let candidates_result = conn.query_map_result(
             "SELECT u.* FROM users u
              JOIN organizations o ON o.id = u.organization_id
              WHERE u.email = ?1 AND u.deleted_at IS NULL AND o.status = 'active'",
             crate::params![body.email],
             User::from_row,
         );
+        let candidates = match candidates_result {
+            Ok(rows) => rows,
+            Err(e) => {
+                log::error!("[login] query_map_result error for {}: {:?}", body.email, e);
+                return BlockJson::error(401, "Invalid credentials");
+            }
+        };
+        log::debug!("[login] found {} candidate(s) for {}", candidates.len(), body.email);
         let valid: Vec<User> = candidates
             .into_iter()
             .filter(|u| {
@@ -127,6 +135,7 @@ fn login_with_pool(
             }
         }
     };
+
 
     let org_id = user.organization_id;
 
